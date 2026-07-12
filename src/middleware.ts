@@ -24,7 +24,8 @@ export async function middleware(req: NextRequest) {
   }
 
   const secret = process.env.SESSION_SECRET?.trim() || password;
-  const ok = await verifySession(req.cookies.get(SESSION_COOKIE)?.value, secret);
+  const username = process.env.APP_USERNAME?.trim() || "";
+  const ok = await verifySession(req.cookies.get(SESSION_COOKIE)?.value, secret, username);
   if (ok) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {

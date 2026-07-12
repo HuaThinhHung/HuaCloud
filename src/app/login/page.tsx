@@ -1,11 +1,12 @@
 "use client";
 
-import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
@@ -19,7 +20,7 @@ export default function LoginPage() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
         const next = new URLSearchParams(window.location.search).get("next") || "/gallery";
@@ -47,7 +48,25 @@ export default function LoginPage() {
             <Lock className="size-5 text-accent" strokeWidth={1.8} />
           </div>
           <h1 className="text-lg font-semibold">HuaCloud</h1>
-          <p className="mt-1 text-[13px] text-muted">Nhập mật khẩu để vào kho ảnh</p>
+          <p className="mt-1 text-[13px] text-muted">Đăng nhập để vào kho ảnh</p>
+        </div>
+
+        <div className="relative mb-3">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+            <User className="size-4" strokeWidth={1.8} />
+          </span>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Tài khoản"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="username"
+            className="h-10 w-full rounded-lg border border-border bg-surface-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-border-strong"
+          />
         </div>
 
         <div className="relative">
@@ -56,7 +75,6 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mật khẩu"
-            autoFocus
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
@@ -78,7 +96,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading || !password}
+          disabled={loading || !username || !password}
           className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-accent text-sm font-medium text-background transition-colors hover:bg-accent-strong disabled:opacity-50"
         >
           {loading && <Loader2 className="size-4 animate-spin" />}

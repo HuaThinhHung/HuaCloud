@@ -16,6 +16,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
   NEXT_PUBLIC_BLOB_ENABLED: z.string().optional(),
   // Bảo vệ truy cập (đặt khi deploy; để trống ở local = không cần đăng nhập)
+  APP_USERNAME: z.string().optional(), // tên tài khoản; để trống = chỉ cần mật khẩu
   APP_PASSWORD: z.string().optional(),
   SESSION_SECRET: z.string().optional(),
   // Cloud storage cho thumbnail/preview khi deploy (Vercel Blob)

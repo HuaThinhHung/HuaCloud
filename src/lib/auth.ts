@@ -35,17 +35,21 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** Giá trị cookie phiên hợp lệ, suy ra từ secret. */
-export async function sessionValue(secret: string): Promise<string> {
-  return hmacBase64Url(secret, SESSION_MARKER);
+/**
+ * Giá trị cookie phiên hợp lệ, suy ra từ secret + username. Gắn username vào
+ * chữ ký nghĩa là đổi tài khoản (hoặc secret) sẽ vô hiệu mọi phiên cũ.
+ */
+export async function sessionValue(secret: string, username = ""): Promise<string> {
+  return hmacBase64Url(secret, `${SESSION_MARKER}:${username}`);
 }
 
 export async function verifySession(
   cookieValue: string | undefined,
   secret: string,
+  username = "",
 ): Promise<boolean> {
   if (!cookieValue) return false;
-  const expected = await sessionValue(secret);
+  const expected = await sessionValue(secret, username);
   return safeEqual(cookieValue, expected);
 }
 
@@ -54,5 +58,6 @@ export async function isAuthorized(cookieValue: string | undefined): Promise<boo
   const password = (process.env.APP_PASSWORD ?? "").trim();
   if (!password) return true;
   const secret = (process.env.SESSION_SECRET ?? "").trim() || password;
-  return verifySession(cookieValue, secret);
+  const username = (process.env.APP_USERNAME ?? "").trim();
+  return verifySession(cookieValue, secret, username);
 }

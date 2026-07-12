@@ -1,217 +1,282 @@
-# Telegraph-Image
+<div align="center">
 
-Free Image Hosting solution, Flickr/imgur alternative. Using Cloudflare Pages and the Telegram Bot API (Telegram Channel).
+# ☁️ HuaCloud
 
-English|[中文](README-zh.md)
+### A modern, AI-ready digital asset manager that turns a **Telegram channel into invisible, unlimited cold storage**.
 
-> [!IMPORTANT]
->
-> Since the original Telegraph API interface was closed by the official, you need to switch the upload channel to Telegram Channel. Please set `TG_Bot_Token` and `TG_Chat_ID` according to the deployment requirements in the documentation, otherwise the upload function will not work properly.
+Upload photos like Google Photos — but every original quietly lives on Telegram for free, while a Cloudflare-backed CDN serves lightning-fast WebP thumbnails. No S3 bill. No storage limit. Fully self-hostable.
 
-## How to Obtain Telegram `Bot_Token` and `Chat_ID`
+<br/>
 
-If you don't have a Telegram account yet, please create one first. Then, follow these steps to get the `BOT_TOKEN` and `CHAT_ID`:
+[![Next.js](https://img.shields.io/badge/Next.js_15-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/Neon_Postgres-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-1. **Get the `Bot_Token`**
-   - In Telegram, send the command `/newbot` to [@BotFather](https://t.me/BotFather), and follow the prompts to input your bot's name and username. Once successfully created, you will receive a `BOT_TOKEN`, which is used to interact with the Telegram API.
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![Deploy](https://img.shields.io/badge/deploy-Vercel-black?style=flat-square&logo=vercel)
+![Status](https://img.shields.io/badge/status-live-brightgreen?style=flat-square)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-blueviolet?style=flat-square)
 
-![202409071744569](https://github.com/user-attachments/assets/04f01289-205c-43e0-ba03-d9ab3465e349)
+<br/>
 
-2. **Set the bot as a channel administrator**
-   - Create a new channel (Channel), enter the channel and select channel settings. Add the bot you just created as a channel administrator, so it can send messages.
+**[Live Demo](https://hua-cloud-huahung.vercel.app)** · **[Report Bug](https://github.com/HuaThinhHung/HuaCloud/issues)** · **[Request Feature](https://github.com/HuaThinhHung/HuaCloud/issues)**
 
-![202409071758534](https://github.com/user-attachments/assets/cedea4c7-8b31-42e0-98a1-8a72ff69528f)
+<sub>If this project sparks an idea, a ⭐ means the world to a solo developer.</sub>
 
-![202409071758796](https://github.com/user-attachments/assets/16393802-17eb-4ae4-a758-f0fdb7aaebc4)
+</div>
 
+---
 
-3. **Get the `Chat_ID`**
-   - Get your channel ID through [@VersaToolsBot](https://t.me/VersaToolsBot). Send a message to this bot and follow the instructions to receive your `CHAT_ID` (the ID of your channel).
-   - Or get your channel ID through [@GetTheirIDBot](https://t.me/GetTheirIDBot). Send a message to this bot and follow the instructions to receive your `CHAT_ID` (the ID of your channel).
+## 📸 Screenshots
 
-   ![202409071751619](https://github.com/user-attachments/assets/59fe8b20-c969-4d13-8d46-e58c0e8b9e79)
+> _Drop your screenshots here — a hero shot of the gallery does more for stars than a thousand words._
 
-Finally, go to the Cloudflare Pages backend to set the relevant environment variables (Note: After modifying environment variables, you need to redeploy for the changes to take effect)
-| Environment Variable | Example Value              | Description                                                                            |
-|---------------------|---------------------------|----------------------------------------------------------------------------------------|
-| `TG_Bot_Token`      | `123468:AAxxxGKrn5`        | Telegram Bot Token obtained from [@BotFather](https://t.me/BotFather).                |
-| `TG_Chat_ID`        | `-1234567`                 | Channel ID, ensure the TG Bot is an administrator of the channel or group.           |
+<div align="center">
 
-## How to Deploy
+| Gallery | Lightbox | Upload |
+|:---:|:---:|:---:|
+| _add `docs/screenshots/gallery.png`_ | _add `docs/screenshots/lightbox.png`_ | _add `docs/screenshots/upload.png`_ |
 
-### Preparation
+</div>
 
-The only thing you need to prepare in advance is a Cloudflare account (If you need to deploy on your own server without relying on Cloudflare, please refer to [#46](https://github.com/cf-pages/Telegraph-Image/issues/46))
+---
 
-### Step by Step Tutorial
+## 💡 Why HuaCloud?
 
-3 simple steps to deploy this project and have your own image hosting
+Most image hosts force a trade-off: pay for object storage (S3, Cloudinary) **or** accept a clunky "upload to Telegram" hack with a bot-token URL leaking everywhere.
 
-1. Fork this repository (Note: You must deploy using Git or Wrangler CLI tool for it to work properly, [Documentation](https://developers.cloudflare.com/pages/functions/get-started/#deploy-your-function))
+**HuaCloud refuses the trade-off.** It treats Telegram as a pure, invisible **cold-storage backend** behind a clean storage-driver interface, and puts a real product on top of it:
 
-2. Open the Cloudflare Dashboard, enter the Pages management page, select Create Project, then choose `Connect to Git provider`
+- 🫥 **Telegram is completely hidden.** Users never see a bot, a chat, or a token. The gallery *never touches Telegram* — it serves derivatives from a CDN. Telegram is only hit when you download the untouched original.
+- 🖼️ **Originals are preserved byte-for-byte.** Every file is uploaded with `sendDocument` (never `sendPhoto`, which re-compresses and strips EXIF). A DAM must never lose a byte.
+- ⚡ **Hot path is CDN-only.** Thumbnails (320px) and previews (1280px) are generated with Sharp, stored on Vercel Blob / Cloudflare, and served with `immutable` cache headers. Scrolling thousands of photos never round-trips to Telegram.
+- 🔌 **Storage is swappable by design.** `Telegram → R2 → local disk` are all drivers behind one interface. Leaving any vendor is "add an adapter," not "rewrite the app."
+- 🧱 **Built to become a SaaS.** The schema ships day-one with workspaces, API keys, usage metering, and multi-channel routing — the expensive-to-retrofit stuff — even where V1 has no UI for it yet.
 
-![1](https://telegraph-image.pages.dev/file/8d4ef9b7761a25821d9c2.png)
+> ⚠️ **Honesty note:** this started as a fork of the CC0-licensed [Telegraph-Image](https://github.com/cf-pages/Telegraph-Image), which is used **only** as a reference for the Telegram integration. Everything you see here — the architecture, the data model, the UI, the storage pipeline — is a ground-up rebuild.
 
-3. Follow the prompts on the page to enter the project name, select the git repository you need to connect to, then click `Deploy site` to complete the deployment
+---
 
-## Features
+## ✨ Features
 
-1. Unlimited image storage, you can upload an unlimited number of images
+### ✅ Available now
 
-2. No need to purchase a server, hosted on Cloudflare's network. When usage does not exceed Cloudflare's free quota, it's completely free
+| | Feature |
+|---|---|
+| 📤 | **Smart upload pipeline** — client → Vercel Blob staging → Sharp derivatives → Telegram original → auto-cleanup, with an **atomic claim** that prevents duplicate pushes on serverless retries |
+| 🖼️ | **Fast gallery** — grid view, blur-hash placeholders (instant paint), favorites, and search by filename |
+| 🔍 | **Lightbox viewer** — full-screen preview with keyboard navigation |
+| ❤️ | **Favorites & Trash** — soft-delete with a 30-day recovery window |
+| 🎨 | **Auto image processing** — WebP thumbnail (320px) + preview (1280px), EXIF `takenAt` extraction, dominant-color detection, EXIF auto-rotation |
+| 🗄️ | **3 pluggable storage backends** — Telegram (originals), Vercel Blob (cloud derivatives), local disk (dev) — chosen automatically per environment |
+| 🔐 | **Single-account auth** — HMAC-signed, edge-compatible session cookie; production refuses to boot without a password set |
+| 🩺 | **Health & ops** — `/api/health` endpoint plus `telegram:setup`, `telegram:health`, `test:upload`, and `backup` scripts |
 
-3. No need to purchase a domain name, you can use the free second-level domain `*.pages.dev` provided by Cloudflare Pages, and also supports binding custom domain names
+### 🛡️ Security, baked in
 
-4. Supports image review API, can be enabled as needed. When enabled, inappropriate images will be automatically blocked and no longer loaded
+- **Magic-byte verification** via Sharp — the browser's `Content-Type` is never trusted
+- **Decompression-bomb guard** — images over ~100 megapixels are rejected
+- **Constant-time** cookie comparison to defeat timing attacks
+- **Fail-fast env validation** with Zod at boot — a misconfigured production instance won't silently expose itself
+- **Bot token never leaves the server** — all Telegram fetches happen server-side inside route handlers
 
-5. Supports backend image management, allowing you to preview uploaded images online, add to whitelist, blacklist, and other operations
+### 🚧 On the roadmap (schema-ready)
 
-### Bind Custom Domain
+The database schema was designed up front for these — they need UI/services, not migrations:
 
-In the custom domain section of Pages, bind a domain name that exists in Cloudflare. For domain names hosted in Cloudflare, DNS records will be automatically modified
-![2](https://telegraph-image.pages.dev/file/29546e3a7465a01281ee2.png)
+- 🤖 **AI enrichment** (Gemini 2.5 Flash): auto captions, tags, OCR, object & color detection
+- 🧠 **Semantic search** with pgvector — natural-language queries like _"find the blue shirt"_
+- 📁 **Albums & smart albums** · 🔗 **Shareable links** (password, expiry, download limits, QR) · 👥 **Multi-workspace** · 🔑 **Public REST API + API keys** · 📊 **Usage metering**
 
-### Enable Image Review
+---
 
-1. Please go to https://moderatecontent.com/ to register and get a free API key for reviewing image content
+## 🏗️ Architecture
 
-2. Open the Cloudflare Pages management page, click `Settings`, `Environment Variables`, `Add Environment Variables` in sequence
+A single Next.js 15 monolith on Vercel, with managed services around it. The gallery hot path is pure CDN; heavy work runs after the response.
 
-3. Add a `variable name` as `ModerateContentApiKey`, `value` as the `API key` you just obtained in step 1, then click `Save`
+```mermaid
+flowchart LR
+    U["Browser<br/>React 19 · TanStack Query"] -->|HTTPS| CDN["CDN<br/>cached WebP derivatives"]
+    CDN --> V
+
+    subgraph V["Vercel — Next.js 15 App Router"]
+        API["Route Handlers<br/>/api/upload · /f/[id]"]
+        JOB["Inline pipeline<br/>process-asset"]
+    end
+
+    API -->|Prisma| DB[("Neon Postgres")]
+    JOB --> DB
+    U -->|direct client upload| BLOB[("Vercel Blob<br/>staging — deleted after processing")]
+    JOB -->|read buffer| BLOB
+    JOB -->|sendDocument / getFile / deleteMessage| TG[("Telegram Bot API<br/>ORIGINAL only")]
+    JOB -->|Sharp: thumb 320 + preview 1280 WebP| DRV[("Blob / R2 / disk<br/>derivatives")]
+    DRV --> CDN
+```
+
+**Upload:** client uploads straight to Vercel Blob (bypassing Vercel's 4.5 MB body limit) → the pipeline derives thumbnails, pushes the original to Telegram, then deletes the staging file. **View:** thumbnails come from the CDN, never Telegram. **Download original:** `/f/[id]` resolves the Telegram `file_path` (cached ~50 min) and streams it back — the token stays server-side.
+
+<details>
+<summary><b>📂 Project structure</b></summary>
+
+```text
+src/
+├─ app/
+│  ├─ (app)/          # authed shell: dashboard, gallery, favorites, trash, settings
+│  ├─ api/            # upload, assets, health, login/logout
+│  └─ f/[id]/         # serve original — Telegram proxy (token stays server-side)
+├─ features/          # self-contained UI: upload/, gallery/
+├─ components/layout/ # sidebar, topbar
+├─ server/            # server-only code
+│  ├─ services/       # business logic — the ONLY place that touches Prisma
+│  ├─ storage/        # StorageDriver interface + telegram/ · blob · local
+│  ├─ media/          # Sharp pipeline
+│  └─ jobs/           # process-asset queue
+├─ lib/               # env (Zod), auth (HMAC), utils
+└─ types/
+prisma/               # schema + migrations
+docs/                 # full vision, PRD, architecture & roadmap
+```
+
+</details>
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| **Framework** | Next.js 15 (App Router, RSC) · React 19 | One codebase for UI + API; server components keep the gallery bundle small |
+| **Language** | TypeScript (strict) | Types derived from Zod — one source of truth |
+| **Database** | PostgreSQL on [Neon](https://neon.tech) + Prisma 6 | Relational + branchable; pgvector-ready for future AI search |
+| **Styling** | Tailwind CSS v4 · Geist · Lucide | Minimal, dark-first, Apple/Linear-inspired |
+| **Data layer** | TanStack Query v5 | Infinite scroll, optimistic updates, status polling |
+| **Images** | Sharp | Thumbnail/preview generation, EXIF, blur placeholders |
+| **Storage** | Telegram Bot API · Vercel Blob · local disk | Free unlimited originals + CDN-served derivatives |
+| **Validation** | Zod | Shared client ↔ server ↔ env schemas |
+| **Deploy** | Vercel | Push to `main` = auto-deploy |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 20+
+- A PostgreSQL database ([Neon](https://neon.tech) free tier works great)
+- A Telegram Bot token + a channel the bot administrates *(optional for local dev — falls back to disk)*
+
+### 1. Clone & install
+
+```bash
+git clone https://github.com/HuaThinhHung/HuaCloud.git
+cd HuaCloud
+npm install
+```
 
-Note: Since the changes will take effect on the next deployment, you may also need to go to the `Deployments` page and redeploy the project
+### 2. Configure environment
 
-After enabling image review, the first image load will be slow because review takes time. Subsequent image loads will not be affected due to caching
-![3](https://telegraph-image.pages.dev/file/bae511fb116b034ef9c14.png)
+Create a `.env` file:
 
-### Limitations
+```bash
+# Database (Neon)
+DATABASE_URL="postgresql://...-pooler.../db"   # pooled connection
+DIRECT_URL="postgresql://.../db"               # direct — used by prisma migrate
 
-1. Uploaded images are sent via the Telegram Bot API and stored on Telegram's servers. Telegram currently limits files sent by bots to a maximum size of 50MB per file; uploads larger than this will fail
+# Telegram storage (optional locally; required in production)
+TELEGRAM_BOT_TOKEN="123456:AA..."
+TELEGRAM_CHAT_ID="-1001234567890"
 
-2. Due to the use of Cloudflare's network, image loading speed may not be guaranteed in some regions
+# Access protection (required in production, optional locally)
+APP_PASSWORD="a-strong-password"
+SESSION_SECRET="a-32-byte-random-string"
 
-3. The free version of Cloudflare Function is limited to 100,000 requests per day (i.e., the total number of uploads or image loads cannot exceed 100,000). If exceeded, you may need to purchase the paid plan of Cloudflare Function. If image management is enabled, there will also be limitations on KV operation count, and you may need to purchase the paid plan if exceeded
+# Cloud derivatives when deployed (Vercel Blob)
+BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 
-### Thanks
+# AI enrichment (optional — roadmap)
+GEMINI_API_KEY=""
+```
 
-Ideas and code provided by Hostloc @feixiang and @乌拉擦
+### 3. Set up the database & Telegram
 
-## Update Log
-July 6, 2024 - Backend Management Page Update
+```bash
+npm run db:push          # apply the Prisma schema
+npm run telegram:setup   # verify the bot & channel wiring
+```
 
-- Support for two new management page views (Grid view and Waterfall view)
+### 4. Run
 
-    1. Grid view, thanks to @DJChanahCJD for the submitted code
-        Supports batch delete/copy links
-        Supports sorting in reverse chronological order
-        Supports pagination
-        ![](https://camo.githubusercontent.com/a0551aa92f39517f0b30d86883882c1af4c9b3486e540c7750af4dbe707371fa/68747470733a2f2f696d6774632d3369312e70616765732e6465762f66696c652f6262616438336561616630356635333731363237322e706e67)
-    2. Waterfall view, thanks to @panther125 for the submitted code
-        ![](https://camo.githubusercontent.com/63d64491afc5654186248141bd343c363808bf8a77d3b879ffc1b8e57e5ac85d/68747470733a2f2f696d6167652e67696e636f64652e6963752f66696c652f3930346435373737613363306530613936623963642e706e67)
+```bash
+npm run dev              # http://localhost:3000
+```
 
-- Added automatic update support
+That's it — drag a photo onto the gallery and watch it flow through the pipeline. Locally, with no Telegram configured, originals are stored on disk so you can develop offline.
 
-    Now forked projects can automatically sync with the upstream repository to automatically install the latest project features, thanks to @bian2022
+<details>
+<summary><b>📜 All scripts</b></summary>
 
-    Steps to enable automatic updates:
-        After you fork the project, due to Github's limitations, you need to manually go to the Actions page of your forked project to enable Workflows, and enable Upstream Sync Action. Once enabled, automatic updates will occur hourly:
-        ![](https://im.gurl.eu.org/file/f27ff07538de656844923.png)
-        ![](https://im.gurl.eu.org/file/063b360119211c9b984c0.png)
-    `If you encounter Upstream Sync execution errors, please manually Sync Fork once!`
+```bash
+npm run dev              # dev server
+npm run build            # production build
+npm run start            # production server
+npm run lint             # eslint
+npm run typecheck        # tsc --noEmit
+npm run db:push          # push schema to DB
+npm run db:migrate       # create a migration
+npm run db:seed          # seed data
+npm run telegram:setup   # verify bot/channel
+npm run telegram:health  # channel health check
+npm run test:upload      # end-to-end upload test
+npm run backup           # export a backup
+```
 
-    Manually update code
+</details>
 
-    If you want to manually update immediately, you can check [Github's documentation](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork) to learn how to sync your forked project with upstream code.
+---
 
-    You can star/watch this project or follow the author to receive notifications of new feature updates.
-- Added remote telemetry
+## ☁️ Deploy to Vercel
 
-    You can opt out of telemetry by adding the `disable_telemetry` environment variable
+1. Import the repo on [Vercel](https://vercel.com/new).
+2. Add the environment variables above (production **requires** `APP_PASSWORD`, `SESSION_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `BLOB_READ_WRITE_TOKEN`).
+3. Deploy. Every push to `main` ships automatically.
 
-January 18, 2023 - Image Management Feature Update
+> Guard rail: the app **refuses to boot on Vercel** without a password + session secret — so you can never accidentally ship an open instance.
 
-1. Support for image management feature, disabled by default. To enable, after deployment, go to the backend and click `Settings`->`Functions`->`KV Namespace Bindings`->`Edit Bindings`->`Variable Name` enter: `img_url` `KV Namespace` select the KV storage space you created in advance. After enabling, visit http(s)://your-domain/admin to open the backend management page
-| Variable Name | KV Namespace |
-| ----------- | ----------- |
-| img_url | Select the KV storage space created in advance |
+---
 
-![](https://im.gurl.eu.org/file/a0c212d5dfb61f3652d07.png)
-![](https://im.gurl.eu.org/file/48b9316ed018b2cb67cf4.png)
+## 🗺️ Roadmap
 
-2. The backend management page has a new login verification feature, also disabled by default. To enable, after deployment, go to the backend and click `Settings`->`Environment Variables`->`Define variables for production`->`Edit variables` and add the variables shown in the table below to enable login verification
-| Variable Name | Value |
-| ----------- | ----------- |
-|BASIC_USER = | <Backend management page login username>|
-|BASIC_PASS = | <Backend management page login password>|
+- [x] Upload pipeline with atomic dedup claim
+- [x] Gallery, favorites, trash, lightbox
+- [x] Telegram / Blob / local storage drivers
+- [x] Single-account auth + production guard rails
+- [ ] AI enrichment (captions, tags, OCR) via Gemini
+- [ ] Semantic search with pgvector
+- [ ] Albums & smart albums
+- [ ] Shareable links (password, expiry, QR)
+- [ ] Multi-workspace + public REST API
+- [ ] Durable background jobs (Inngest) + Cloudflare R2
 
-![](https://im.gurl.eu.org/file/dff376498ac87cdb78071.png)
+See [`docs/`](docs/) for the full vision, product requirements, and architecture decisions.
 
-Of course, you can also choose not to set these two values, so that accessing the backend management page will not require verification and will skip the login step directly. This design allows you to use it in combination with Cloudflare Access to achieve email verification code login, Microsoft account login, Github account login, and other functions. It can be integrated with the existing login method on your domain without having to remember another set of backend credentials. For adding Cloudflare Access, please refer to the official documentation. Note that the protected path needs to include /admin and /api/manage/\*
+---
 
-3. Added image total count statistics
-When the image management feature is enabled, you can view the number of images in the record at the top of the backend
+## 🤝 Contributing
 
-![](https://im.gurl.eu.org/file/b7a37c08dc2c504199824.png)
+Issues and PRs are welcome. If you're using HuaCloud, a ⭐ helps others find it.
 
-4. Added image filename search
-When the image management feature is enabled, you can use the image filename in the backend search box to quickly search and locate the images you need to manage
+## 📄 License
 
-![](https://im.gurl.eu.org/file/faf6d59a7d4a48a555491.png)
+Released under the [MIT License](LICENSE). The Telegram-integration reference, [Telegraph-Image](https://github.com/cf-pages/Telegraph-Image), is CC0 1.0 (public domain) — no attribution required, but credited here in good faith.
 
-5. Added image status display
-When the image management feature is enabled, you can view the current status of the image in the backend { "ListType": "None", "TimeStamp": 1673984678274 }
-ListType indicates whether the image is currently in the blacklist or whitelist. None means it's neither in the blacklist nor the whitelist, White means it's in the whitelist, Block means it's in the blacklist. TimeStamp is the timestamp when the image was first loaded. If image review API is enabled, the image review result will also be displayed here, identified by Label
+---
 
-![](https://im.gurl.eu.org/file/6aab78b83bbd8c249ee29.png)
+<div align="center">
 
-6. Added blacklist feature
-When the image management feature is enabled, you can manually add images to the blacklist in the backend. Images on the blacklist will not load properly
+Built with care by **[Hua Thinh Hung](https://github.com/HuaThinhHung)** — IT Executive · Full-Stack & Shopify Developer
 
-![](https://im.gurl.eu.org/file/fb18ef006a23677a52dfe.png)
+<sub>⭐ Star this repo if the invisible-Telegram-storage idea made you smile.</sub>
 
-7. Added whitelist feature
-When the image management feature is enabled, you can manually add images to the whitelist in the backend. Images on the whitelist will always load properly, bypassing the image review API results
-
-![](https://im.gurl.eu.org/file/2193409107d4f2bcd00ee.png)
-
-8. Added record deletion feature
-When the image management feature is enabled, you can manually delete image records in the backend, which means the image will no longer be displayed in the backend unless someone uploads and loads the image again. Note that since images are stored on telegraph's server, we cannot delete the originally uploaded images. We can only block image loading through the blacklist feature mentioned in point 6 above
-
-9. Added program running mode: Whitelist mode
-When the image management feature is enabled, in addition to the default mode, this update also adds a new running mode. In this mode, only images added to the whitelist will be loaded. Uploaded images need to be approved before they can be displayed, which prevents inappropriate images from loading to the greatest extent. To enable, please set the environment variable: WhiteList_Mode=="true"
-
-10. Added backend image preview feature
-When the image management feature is enabled, you can preview images loaded through your domain in the backend. Click on images to zoom in, zoom out, rotate, and perform other operations
-
-![](https://im.gurl.eu.org/file/740cd5a69672de36133a2.png)
-
-## How to Update if Already Deployed?
-
-Updating is actually very simple. Just refer to the update content above, first go to the Cloudflare Pages backend, set the required environment variables in advance and bind the KV namespace, then go to your previously forked repository on Github and select `Sync fork`->`Update branch`. After a while, Cloudflare Pages will detect that your repository has been updated and will automatically deploy the latest code
-
-## Some Limitations:
-
-Cloudflare KV only has a free write quota of 1000 times per day. Each new image loaded will consume this write quota. If this quota is exceeded, the image management backend will not be able to record newly loaded images
-
-Maximum of 100,000 free read operations per day. Each image load will consume this quota (when there is no cache. If your domain has cache enabled on Cloudflare, this quota will only be consumed when the cache misses). If exceeded, blacklist and whitelist features may fail
-
-Maximum of 1,000 free delete operations per day. Each image record will consume this quota. If exceeded, you will not be able to delete image records
-
-Maximum of 1,000 free list operations per day. Each time you open or refresh the backend /admin, it will consume this quota. If exceeded, backend image management will be affected
-
-In most cases, the free quota is basically sufficient and can be slightly exceeded. It doesn't stop immediately when exceeded. Each quota is calculated separately. When a certain operation exceeds the free quota, only that operation will be suspended and will not affect other functions. That is, even if my free write quota is used up, my read and write functions are not affected, images can load normally, I just can't see new images in the image management backend.
-
-If your free quota is not enough, you can purchase the paid version of Cloudflare Workers from Cloudflare yourself, starting at $5 per month, pay-as-you-go, without the above quota limitations
-
-In addition, changes made to environment variables will take effect on the next deployment. If you changed `Environment Variables` to enable or disable a certain function, remember to redeploy.
-
-![](https://im.gurl.eu.org/file/b514467a4b3be0567a76f.png)
-
-### Sponsorship
-
-This project is tested with BrowserStack.
-
-This project is support by [Cloudflare](https://www.cloudflare.com/).
-#   H u a C l o u d  
- 
+</div>
