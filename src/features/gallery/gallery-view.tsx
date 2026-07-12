@@ -45,8 +45,6 @@ const KINDS: { label: string; value: AssetKind | "" }[] = [
   { label: "Tất cả", value: "" },
   { label: "Ảnh", value: "IMAGE" },
   { label: "Video", value: "VIDEO" },
-  { label: "Nhạc", value: "AUDIO" },
-  { label: "Tài liệu", value: "DOCUMENT" },
 ];
 
 const SORTS: { label: string; value: SortKey }[] = [
