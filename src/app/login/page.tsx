@@ -1,12 +1,13 @@
 "use client";
 
-import { Loader2, Lock } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -49,14 +50,29 @@ export default function LoginPage() {
           <p className="mt-1 text-[13px] text-muted">Nhập mật khẩu để vào kho ảnh</p>
         </div>
 
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Mật khẩu"
-          autoFocus
-          className="h-10 w-full rounded-lg border border-border bg-surface-2 px-3 text-sm outline-none transition-colors focus:border-border-strong"
-        />
+        <div className="relative">
+          <input
+            type={showPw ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mật khẩu"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="current-password"
+            className="h-10 w-full rounded-lg border border-border bg-surface-2 px-3 pr-10 text-sm outline-none transition-colors focus:border-border-strong"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPw((s) => !s)}
+            aria-label={showPw ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            tabIndex={-1}
+            className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted transition-colors hover:text-foreground"
+          >
+            {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </div>
 
         {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
 

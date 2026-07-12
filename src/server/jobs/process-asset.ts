@@ -22,10 +22,17 @@ export async function processAssetNow(assetId: string, providedBuffer?: Buffer):
   if (!asset) return;
   if (asset.status === "READY") return; // idempotent
 
-  await prisma.asset.update({
-    where: { id: assetId },
+  // Atomic claim: chỉ MỘT worker được xử lý asset này. Chống race khi Vercel Blob
+  // gọi onUploadCompleted 2 lần (retry vì xử lý ảnh lớn lâu) → tránh đẩy Telegram TRÙNG
+  // và tránh badge FAILED chớp nháy. updateMany atomic ở tầng DB: worker thứ 2 khớp 0 dòng.
+  const claim = await prisma.asset.updateMany({
+    where: { id: assetId, status: { in: ["PENDING", "FAILED"] } },
     data: { status: "PROCESSING", errorMessage: null },
   });
+  if (claim.count === 0) {
+    console.log(`[process-asset] ${assetId} bỏ qua — worker khác đang xử lý (hoặc đã xong)`);
+    return;
+  }
   console.log(`[process-asset] ${assetId} bắt đầu (${asset.size}B, ${asset.kind}) ${memUsage()}`);
 
   try {
