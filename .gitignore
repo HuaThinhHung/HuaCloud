@@ -12,6 +12,9 @@ next-env.d.ts
 # local data (sqlite db, staging files, derived thumbnails)
 /.data/
 
+# prisma migrations cũ (SQLite) — production dùng Postgres + `prisma db push`, không migrate
+/prisma/migrations/
+
 # env — KHÔNG commit secret
 .env
 .env.*
