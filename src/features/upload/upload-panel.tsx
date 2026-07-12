@@ -20,7 +20,7 @@ export function UploadPanel({ items, onClear }: { items: UploadItem[]; onClear: 
   if (items.length === 0) return null;
 
   return (
-    <div className="hc-fade-up fixed bottom-4 right-4 z-[80] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border-strong bg-surface shadow-xl shadow-black/10">
+    <div className="hc-fade-up fixed bottom-20 right-4 z-[80] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border-strong bg-surface shadow-xl shadow-black/10 md:bottom-4">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <p className="text-sm font-medium">
           {active > 0 ? (

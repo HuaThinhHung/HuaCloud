@@ -11,12 +11,14 @@ import type { AssetDTO } from "@/types/asset";
 import {
   deleteAssetApi,
   fetchAssets,
+  renameAssetApi,
   restoreAssetApi,
   retryAssetApi,
   toggleFavoriteApi,
   type GalleryView as ViewKind,
 } from "./api";
 import { AssetCard } from "./asset-card";
+import { ImageEditor } from "./image-editor";
 import { Lightbox } from "./lightbox";
 
 const VIEW_TITLE: Record<ViewKind, string> = {
@@ -31,6 +33,7 @@ export function GalleryView({ view }: { view: ViewKind }) {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -104,9 +107,18 @@ export function GalleryView({ view }: { view: ViewKind }) {
     },
     onError: (e) => toast.error(e.message),
   });
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => renameAssetApi(id, name),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Đã đổi tên ảnh.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const lightboxIndex = items.findIndex((a) => a.id === lightboxId);
   const lightboxAsset = lightboxIndex >= 0 ? items[lightboxIndex] : null;
+  const editingAsset = editingId ? (items.find((a) => a.id === editingId) ?? null) : null;
 
   const openDelete = (a: AssetDTO) => {
     const hard = view === "trash";
@@ -181,7 +193,13 @@ export function GalleryView({ view }: { view: ViewKind }) {
           hasNext={lightboxIndex < items.length - 1}
           onFavorite={() => favorite.mutate(lightboxAsset.id)}
           onDelete={() => openDelete(lightboxAsset)}
+          onRename={(name) => rename.mutate({ id: lightboxAsset.id, name })}
+          onEdit={() => setEditingId(lightboxAsset.id)}
         />
+      )}
+
+      {editingAsset && (
+        <ImageEditor asset={editingAsset} onClose={() => setEditingId(null)} />
       )}
     </>
   );
