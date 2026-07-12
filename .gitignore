@@ -1,0 +1,27 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# local data (sqlite db, staging files, derived thumbnails)
+/.data/
+
+# env — KHÔNG commit secret
+.env
+.env.*
+!.env.example
+
+# misc
+*.tsbuildinfo
+*.log
+.DS_Store
+backups/
+
+.vercel
+.env*

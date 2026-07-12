@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* HuaCloud — hệ màu SÁNG, clean neutral (shadcn-style): nền trắng, chữ gần đen,
+   viền xám nhạt, primary gần đen. Đơn sắc để gọn gàng, dễ đọc. */
+@theme {
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f4f5; /* zinc-100 — hover / fill nhẹ */
+  --color-border: #e4e4e7; /* zinc-200 */
+  --color-border-strong: #d4d4d8; /* zinc-300 */
+  --color-foreground: #09090b; /* zinc-950 — gần đen */
+  --color-muted: #52525b; /* zinc-600 */
+  --color-muted-2: #a1a1aa; /* zinc-400 */
+  --color-accent: #18181b; /* zinc-900 — primary gần đen */
+  --color-accent-strong: #000000;
+  --color-danger: #dc2626; /* red-600 */
+  --color-warning: #d97706; /* amber-600 */
+  --color-success: #16a34a; /* green-600 */
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "Cascadia Code", monospace;
+
+  --radius-card: 10px;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+}
+
+/* Scrollbar tinh tế (nền sáng) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 8px;
+  border: 2px solid var(--color-background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes hc-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hc-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.hc-fade-up {
+  animation: hc-fade-up 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hc-scale-in {
+  animation: hc-scale-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}

@@ -1,0 +1,241 @@
+// HuaCloud — Prisma schema (PostgreSQL / Neon).
+//
+// Giữ String-thay-enum và String(JSON) thay vì native enum/jsonb để service layer
+// KHÔNG phải sửa khi chuyển từ SQLite sang Postgres (giá trị hợp lệ tại
+// src/types/asset.ts). DATABASE_URL = Neon pooled (-pooler, pgbouncer);
+// DIRECT_URL = Neon direct (không -pooler) cho việc đổi schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  image     String?
+  role      String   @default("user") // "user" | "admin"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships WorkspaceMember[]
+  assets      Asset[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     WorkspaceMember[]
+  assets      Asset[]
+  albums      Album[]
+  shares      Share[]
+  apiKeys     ApiKey[]
+  activities  Activity[]
+  usageEvents UsageEvent[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        String   @default("OWNER") // OWNER | ADMIN | MEMBER | VIEWER
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+}
+
+// Pool channel Telegram — V1 seed đúng 1 dòng từ TELEGRAM_CHAT_ID.
+model StorageChannel {
+  id        String   @id @default(cuid())
+  tgChatId  String   @unique
+  label     String?
+  status    String   @default("ACTIVE") // ACTIVE | DEGRADED | DISABLED
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Asset {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  uploaderId     String
+  kind           String // IMAGE | VIDEO | AUDIO | DOCUMENT
+  status         String    @default("PENDING") // PENDING | PROCESSING | READY | FAILED
+  fileName       String
+  mimeType       String // đã verify bằng magic bytes, KHÔNG tin browser
+  size           Int // bytes — MVP chặn 20MB
+  checksumSha256 String
+  width          Int?
+  height         Int?
+  durationMs     Int?
+  takenAt        DateTime? // EXIF DateTimeOriginal
+  exif           String? // JSON string
+  blurDataUrl    String? // data URI ảnh mờ ~16px — placeholder (bản Postgres: thumbhash)
+  dominantColor  String? // hex
+  palette        String? // JSON string [{hex, ratio}]
+  aiCaption      String?
+  aiTags         String    @default("[]") // JSON string array
+  ocrText        String?
+  aiMeta         String? // JSON string
+  aiProcessedAt  DateTime?
+  isFavorite     Boolean   @default(false)
+  deletedAt      DateTime? // soft delete — Trash 30 ngày
+  stagingUrl     String? // đường dẫn file staging local — xóa khi READY
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id])
+  uploader  User          @relation(fields: [uploaderId], references: [id])
+  parts     StoragePart[]
+  albums    AlbumAsset[]
+  shares    Share[]
+
+  @@index([workspaceId, deletedAt, createdAt])
+  @@index([workspaceId, checksumSha256])
+  @@index([workspaceId, status])
+  @@index([workspaceId, isFavorite])
+}
+
+// Tách bảng parts NGAY TỪ ĐẦU (chunking + swap backend sau này).
+model StoragePart {
+  id           String    @id @default(cuid())
+  assetId      String
+  variant      String // ORIGINAL | THUMB | PREVIEW
+  partIndex    Int       @default(0)
+  backend      String // TELEGRAM | LOCAL | R2
+  size         Int
+  // Backend TELEGRAM (variant ORIGINAL)
+  tgChatId     String?
+  tgMessageId  BigInt? // BẮT BUỘC lưu — deleteMessage xóa thật được
+  tgFileId     String?
+  tgFilePath   String? // cache getFile — sống ~1h
+  tgFilePathAt DateTime? // TTL 50 phút
+  // Backend LOCAL (variant THUMB/PREVIEW — dev fallback thay R2)
+  localPath    String?
+  // Backend BLOB (Vercel Blob — derivatives + staging khi deploy)
+  blobUrl      String?
+  // Backend R2 (production)
+  r2Key        String?
+  createdAt    DateTime  @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, variant, partIndex])
+  @@index([tgFileId])
+}
+
+model Album {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  description  String?
+  coverAssetId String?
+  isSmart      Boolean  @default(false)
+  smartQuery   String? // JSON string
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assets    AlbumAsset[]
+
+  @@index([workspaceId])
+}
+
+model AlbumAsset {
+  albumId  String
+  assetId  String
+  position Int      @default(0)
+  addedAt  DateTime @default(now())
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, assetId])
+  @@index([assetId])
+}
+
+model Share {
+  id            String    @id @default(cuid())
+  token         String    @unique // nanoid(12)
+  workspaceId   String
+  createdById   String
+  assetId       String?
+  albumId       String?
+  passwordHash  String?
+  expiresAt     DateTime?
+  maxDownloads  Int?
+  downloadCount Int       @default(0)
+  viewCount     Int       @default(0)
+  allowDownload Boolean   @default(true)
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  asset     Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([expiresAt])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  prefix      String
+  hashedKey   String    @unique // SHA-256(key)
+  scopes      String    @default("[]") // JSON string array
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  actorType   String   @default("user") // user | api_key | system
+  action      String
+  targetType  String
+  targetId    String
+  meta        String? // JSON string
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([targetType, targetId])
+}
+
+model UsageEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  apiKeyId    String?
+  metric      String // UPLOAD_BYTES | DOWNLOAD_BYTES | AI_ENRICH | API_CALL
+  quantity    BigInt
+  occurredAt  DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, metric, occurredAt])
+}

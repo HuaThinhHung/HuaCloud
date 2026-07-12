@@ -1,0 +1,56 @@
+{
+  "name": "huacloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HuaCloud — AI-powered digital asset management platform",
+  "author": "Hua Hung",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "telegram:setup": "tsx scripts/telegram-setup.ts",
+    "telegram:health": "tsx scripts/telegram-health.ts",
+    "test:upload": "tsx scripts/test-upload.ts",
+    "backup": "tsx scripts/backup.ts",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@tanstack/react-query": "^5.101.2",
+    "@vercel/blob": "^2.6.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "geist": "^1.7.2",
+    "lucide-react": "^1.23.0",
+    "nanoid": "^5.1.16",
+    "next": "^15.5.20",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "sharp": "^0.35.3",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.3.2",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.20",
+    "postcss": "^8.5.16",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4.3.2",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3"
+  }
+}

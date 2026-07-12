@@ -1,0 +1,201 @@
+"use client";
+
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { upload } from "@vercel/blob/client";
+import { toast } from "sonner";
+import { UploadOverlay } from "./upload-overlay";
+import { UploadPanel } from "./upload-panel";
+
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+// Vercel (deploy): PUT thẳng lên Blob để né body-limit 4.5MB. Local: XHR multipart.
+const BLOB_ENABLED = process.env.NEXT_PUBLIC_BLOB_ENABLED === "1";
+
+export type UploadItem = {
+  id: string;
+  fileName: string;
+  size: number;
+  progress: number; // 0..100
+  status: "queued" | "uploading" | "done" | "duplicate" | "error";
+  error?: string;
+};
+
+type UploadContextValue = {
+  items: UploadItem[];
+  pickFiles: () => void;
+  addFiles: (files: Iterable<File>) => void;
+  clearFinished: () => void;
+};
+
+const UploadContext = createContext<UploadContextValue | null>(null);
+
+export function useUpload(): UploadContextValue {
+  const ctx = useContext(UploadContext);
+  if (!ctx) throw new Error("useUpload phải nằm trong UploadProvider");
+  return ctx;
+}
+
+const CONCURRENCY = 3;
+let itemSeq = 0;
+
+export function UploadProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const [items, setItems] = useState<UploadItem[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const queueRef = useRef<{ item: UploadItem; file: File }[]>([]);
+  const activeRef = useRef(0);
+
+  const update = useCallback((id: string, patch: Partial<UploadItem>) => {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }, []);
+
+  const pump = useCallback(() => {
+    while (activeRef.current < CONCURRENCY && queueRef.current.length > 0) {
+      const next = queueRef.current.shift()!;
+      activeRef.current += 1;
+
+      const done = (patch: Partial<UploadItem>) => {
+        update(next.item.id, patch);
+        activeRef.current -= 1;
+        queryClient.invalidateQueries({ queryKey: ["assets"] });
+        pump();
+      };
+
+      if (BLOB_ENABLED) {
+        update(next.item.id, { status: "uploading", progress: 0 });
+        upload(next.file.name, next.file, {
+          access: "public",
+          handleUploadUrl: "/api/upload/handle",
+          clientPayload: JSON.stringify({ fileName: next.file.name }),
+          onUploadProgress: (e) =>
+            update(next.item.id, { status: "uploading", progress: Math.round(e.percentage) }),
+        })
+          .then(() => {
+            done({ status: "done", progress: 100 });
+            // Asset được tạo server-side (onUploadCompleted) sau ít giây → refetch thêm
+            setTimeout(() => queryClient.invalidateQueries({ queryKey: ["assets"] }), 2500);
+            setTimeout(() => queryClient.invalidateQueries({ queryKey: ["assets"] }), 6000);
+          })
+          .catch((err: unknown) =>
+            done({ status: "error", error: err instanceof Error ? err.message : "Upload thất bại" }),
+          );
+        continue;
+      }
+
+      const form = new FormData();
+      form.append("file", next.file, next.file.name);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          update(next.item.id, {
+            status: "uploading",
+            progress: Math.round((e.loaded / e.total) * 100),
+          });
+        }
+      };
+      xhr.onload = () => {
+        try {
+          const body = JSON.parse(xhr.responseText || "{}");
+          if (xhr.status === 201) {
+            done({ status: "done", progress: 100 });
+          } else if (xhr.status === 200 && body.kind === "duplicate") {
+            done({ status: "duplicate", progress: 100 });
+            toast.info(`"${next.item.fileName}" đã có trong thư viện — bỏ qua bản trùng.`);
+          } else {
+            done({ status: "error", error: body.error ?? `Lỗi ${xhr.status}` });
+          }
+        } catch {
+          done({ status: "error", error: `Lỗi ${xhr.status}` });
+        }
+      };
+      xhr.onerror = () => done({ status: "error", error: "Mất kết nối khi upload" });
+      xhr.send(form);
+      update(next.item.id, { status: "uploading" });
+    }
+  }, [queryClient, update]);
+
+  const addFiles = useCallback(
+    (files: Iterable<File>) => {
+      const accepted: { item: UploadItem; file: File }[] = [];
+      for (const file of files) {
+        if (file.size > MAX_FILE_BYTES) {
+          toast.error(`"${file.name}" vượt quá 20MB — giới hạn hiện tại là 20MB/file.`);
+          continue;
+        }
+        if (file.size === 0) continue;
+        const item: UploadItem = {
+          id: `u${++itemSeq}-${Date.now()}`,
+          fileName: file.name || "untitled",
+          size: file.size,
+          progress: 0,
+          status: "queued",
+        };
+        accepted.push({ item, file });
+      }
+      if (accepted.length === 0) return;
+      setItems((prev) => [...accepted.map((a) => a.item), ...prev].slice(0, 100));
+      queueRef.current.push(...accepted);
+      pump();
+    },
+    [pump],
+  );
+
+  const pickFiles = useCallback(() => inputRef.current?.click(), []);
+
+  const clearFinished = useCallback(() => {
+    setItems((prev) =>
+      prev.filter((it) => it.status === "queued" || it.status === "uploading"),
+    );
+  }, []);
+
+  // Ctrl+V paste ảnh từ clipboard — hoạt động trên mọi trang
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = e.clipboardData?.files;
+      if (files && files.length > 0) {
+        const named = Array.from(files).map(
+          (f) =>
+            new File([f], f.name && f.name !== "image.png" ? f.name : `pasted-${Date.now()}.png`, {
+              type: f.type,
+            }),
+        );
+        addFiles(named);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [addFiles]);
+
+  const value = useMemo(
+    () => ({ items, pickFiles, addFiles, clearFinished }),
+    [items, pickFiles, addFiles, clearFinished],
+  );
+
+  return (
+    <UploadContext.Provider value={value}>
+      {children}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <UploadOverlay onDropFiles={addFiles} />
+      <UploadPanel items={items} onClear={clearFinished} />
+    </UploadContext.Provider>
+  );
+}
