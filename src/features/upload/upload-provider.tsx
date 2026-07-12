@@ -43,7 +43,9 @@ export function useUpload(): UploadContextValue {
   return ctx;
 }
 
-const CONCURRENCY = 3;
+// 2 (không phải 3): mỗi upload kích hoạt đẩy ảnh GỐC lên Telegram ở server;
+// 3 ảnh nặng cùng lúc dễ làm Telegram nghẽn → timeout 55s → FAILED. 2 an toàn hơn.
+const CONCURRENCY = 2;
 let itemSeq = 0;
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {

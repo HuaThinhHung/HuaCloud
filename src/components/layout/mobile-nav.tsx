@@ -1,13 +1,13 @@
 "use client";
 
-import { Heart, Image as ImageIcon, LayoutDashboard, Settings, Trash2 } from "lucide-react";
+import { Heart, Image as ImageIcon, Library, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/gallery", label: "Thư viện", icon: ImageIcon },
+  { href: "/albums", label: "Album", icon: Library },
   { href: "/favorites", label: "Yêu thích", icon: Heart },
   { href: "/trash", label: "Thùng rác", icon: Trash2 },
   { href: "/settings", label: "Cài đặt", icon: Settings },

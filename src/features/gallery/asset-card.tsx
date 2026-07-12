@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   ArchiveRestore,
+  Check,
   FileText,
   Film,
   Heart,
@@ -19,6 +20,9 @@ const KIND_ICON = { VIDEO: Film, AUDIO: Music, DOCUMENT: FileText } as const;
 type Props = {
   asset: AssetDTO;
   inTrash?: boolean;
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   onOpen: () => void;
   onFavorite: () => void;
   onDelete: () => void;
@@ -26,7 +30,18 @@ type Props = {
   onRetry?: () => void;
 };
 
-export function AssetCard({ asset, inTrash, onOpen, onFavorite, onDelete, onRestore, onRetry }: Props) {
+export function AssetCard({
+  asset,
+  inTrash,
+  selecting,
+  selected,
+  onToggleSelect,
+  onOpen,
+  onFavorite,
+  onDelete,
+  onRestore,
+  onRetry,
+}: Props) {
   const isImage = asset.kind === "IMAGE";
   const processing = asset.status === "PENDING" || asset.status === "PROCESSING";
   const failed = asset.status === "FAILED";
@@ -35,10 +50,19 @@ export function AssetCard({ asset, inTrash, onOpen, onFavorite, onDelete, onRest
 
   return (
     <figure
-      className="group relative mb-3 break-inside-avoid overflow-hidden rounded-[10px] border border-border bg-surface transition-all duration-200 hover:border-border-strong hover:shadow-md"
+      className={cn(
+        "group relative mb-3 break-inside-avoid overflow-hidden rounded-[10px] border bg-surface transition-all duration-200",
+        selected
+          ? "border-accent ring-2 ring-accent"
+          : "border-border hover:border-border-strong hover:shadow-md",
+      )}
       style={{ aspectRatio: ratio }}
     >
-      <button onClick={onOpen} className="absolute inset-0 w-full cursor-zoom-in" aria-label={asset.fileName}>
+      <button
+        onClick={selecting ? onToggleSelect : onOpen}
+        className={cn("absolute inset-0 w-full", selecting ? "cursor-pointer" : "cursor-zoom-in")}
+        aria-label={asset.fileName}
+      >
         {isImage && !processing ? (
           <img
             src={asset.thumbUrl}
@@ -59,6 +83,17 @@ export function AssetCard({ asset, inTrash, onOpen, onFavorite, onDelete, onRest
           <NonImagePlaceholder asset={asset} processing={processing} failed={failed} />
         )}
       </button>
+
+      {selecting && (
+        <span
+          className={cn(
+            "pointer-events-none absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-full border-2 shadow",
+            selected ? "border-accent bg-accent text-background" : "border-white/90 bg-black/30",
+          )}
+        >
+          {selected && <Check className="size-3.5" strokeWidth={3} />}
+        </span>
+      )}
 
       {/* gradient + tên file khi hover */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-2.5 pt-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -85,6 +120,7 @@ export function AssetCard({ asset, inTrash, onOpen, onFavorite, onDelete, onRest
         className={cn(
           "absolute right-2 top-2 flex gap-1 transition-opacity duration-150",
           asset.isFavorite && !inTrash ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          selecting && "hidden",
         )}
       >
         {failed && onRetry && (

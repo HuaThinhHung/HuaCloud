@@ -1,12 +1,13 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { Asset } from "@prisma/client";
+import type { Asset, Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { Ctx } from "@/server/context";
 import { processAssetNow } from "@/server/jobs/process-asset";
 import { deleteBlob, fetchBlobBuffer } from "@/server/storage/blob";
 import { removeAssetLocalData, saveStagingFile } from "@/server/storage/local";
 import { telegramDriver } from "@/server/storage/telegram/driver";
+import type { SmartQuery } from "@/types/album";
 import type { AssetDTO, AssetKind, AssetListResponse, AssetStatus } from "@/types/asset";
 import { logActivity } from "./activity.service";
 
@@ -41,26 +42,92 @@ export function toDTO(a: Asset): AssetDTO {
   };
 }
 
+export type SortKey = "new" | "old" | "name" | "size";
+
 export type ListParams = {
   cursor?: string | null;
   take?: number;
   q?: string;
   view?: "all" | "favorites" | "trash";
+  kind?: AssetKind;
+  albumId?: string;
+  sort?: SortKey;
 };
+
+/** Bộ lọc Prisma từ SmartQuery — dùng cho album thông minh (album.service import lại). */
+export function smartWhere(q: SmartQuery | null): Prisma.AssetWhereInput {
+  if (!q) return {};
+  const w: Prisma.AssetWhereInput = {};
+  if (q.kind) w.kind = q.kind;
+  if (q.favorite) w.isFavorite = true;
+  const gte = rangeStart(q.range) ?? (q.since ? new Date(q.since) : null);
+  if (gte) w.createdAt = { gte };
+  return w;
+}
+
+function rangeStart(range?: SmartQuery["range"]): Date | null {
+  if (!range) return null;
+  const d = new Date();
+  switch (range) {
+    case "today":
+      d.setHours(0, 0, 0, 0);
+      return d;
+    case "7d":
+      d.setDate(d.getDate() - 7);
+      return d;
+    case "30d":
+      d.setDate(d.getDate() - 30);
+      return d;
+    case "this-month":
+      return new Date(d.getFullYear(), d.getMonth(), 1);
+    case "this-year":
+      return new Date(d.getFullYear(), 0, 1);
+    default:
+      return null;
+  }
+}
+
+function sortOrderBy(sort?: SortKey) {
+  switch (sort) {
+    case "old":
+      return [{ createdAt: "asc" as const }, { id: "asc" as const }];
+    case "name":
+      return [{ fileName: "asc" as const }, { id: "asc" as const }];
+    case "size":
+      return [{ size: "desc" as const }, { id: "desc" as const }];
+    default:
+      return [{ createdAt: "desc" as const }, { id: "desc" as const }];
+  }
+}
 
 export async function listAssets(ctx: Ctx, params: ListParams): Promise<AssetListResponse> {
   const take = Math.min(Math.max(params.take ?? 40, 1), 100);
+
+  // Lọc theo album: album thường → membership; album thông minh → smartQuery.
+  let albumWhere: Prisma.AssetWhereInput = {};
+  if (params.albumId) {
+    const album = await prisma.album.findFirst({
+      where: { id: params.albumId, workspaceId: ctx.workspaceId },
+    });
+    if (!album) return { items: [], nextCursor: null, total: 0 };
+    albumWhere = album.isSmart
+      ? smartWhere(album.smartQuery ? (JSON.parse(album.smartQuery) as SmartQuery) : null)
+      : { albums: { some: { albumId: params.albumId } } };
+  }
+
   const where = {
     workspaceId: ctx.workspaceId,
     deletedAt: params.view === "trash" ? { not: null } : null,
     ...(params.view === "favorites" ? { isFavorite: true } : {}),
+    ...(params.kind ? { kind: params.kind } : {}),
     ...(params.q ? { fileName: { contains: params.q, mode: "insensitive" as const } } : {}),
+    ...albumWhere,
   };
 
   const [items, total] = await Promise.all([
     prisma.asset.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: sortOrderBy(params.sort),
       take: take + 1,
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
     }),
