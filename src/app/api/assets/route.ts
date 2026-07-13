@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     kind,
     sort,
     albumId: sp.get("albumId") ?? undefined,
+    noAlbum: sp.get("noAlbum") === "1",
   });
   return NextResponse.json(result);
 }

@@ -11,6 +11,7 @@ export async function fetchAssets(params: {
   kind?: AssetKind | "";
   sort?: SortKey;
   albumId?: string;
+  noAlbum?: boolean;
 }): Promise<AssetListResponse> {
   const sp = new URLSearchParams({ view: params.view });
   if (params.q) sp.set("q", params.q);
@@ -18,6 +19,7 @@ export async function fetchAssets(params: {
   if (params.kind) sp.set("kind", params.kind);
   if (params.sort) sp.set("sort", params.sort);
   if (params.albumId) sp.set("albumId", params.albumId);
+  if (params.noAlbum) sp.set("noAlbum", "1");
   const res = await fetch(`/api/assets?${sp}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Không tải được danh sách ảnh");
   return res.json();

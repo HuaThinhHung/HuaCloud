@@ -134,7 +134,7 @@ export function AlbumsView() {
                       if (window.confirm(`Xóa album "${a.name}"? (Ảnh không bị xóa)`)) del.mutate(a.id);
                     }}
                     aria-label="Xóa album"
-                    className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-lg bg-black/50 text-white opacity-0 backdrop-blur transition-opacity hover:bg-danger/80 group-hover:opacity-100"
+                    className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-lg bg-black/50 text-white backdrop-blur transition-opacity hover:bg-danger/80 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Trash2 className="size-3.5" />
                   </button>

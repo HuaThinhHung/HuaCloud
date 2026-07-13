@@ -52,6 +52,7 @@ export type ListParams = {
   kind?: AssetKind;
   albumId?: string;
   sort?: SortKey;
+  noAlbum?: boolean; // chỉ ảnh CHƯA nằm trong album nào (dọn thư viện chính)
 };
 
 /** Bộ lọc Prisma từ SmartQuery — dùng cho album thông minh (album.service import lại). */
@@ -121,6 +122,7 @@ export async function listAssets(ctx: Ctx, params: ListParams): Promise<AssetLis
     ...(params.view === "favorites" ? { isFavorite: true } : {}),
     ...(params.kind ? { kind: params.kind } : {}),
     ...(params.q ? { fileName: { contains: params.q, mode: "insensitive" as const } } : {}),
+    ...(params.noAlbum && !params.albumId ? { albums: { none: {} } } : {}),
     ...albumWhere,
   };
 

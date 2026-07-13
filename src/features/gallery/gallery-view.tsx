@@ -3,8 +3,8 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
+  FolderMinus,
   FolderPlus,
-  Heart,
   ImageIcon,
   Loader2,
   Search,
@@ -20,7 +20,6 @@ import { useUpload } from "@/features/upload/upload-provider";
 import { cn } from "@/lib/utils";
 import type { AssetDTO, AssetKind } from "@/types/asset";
 import {
-  addToAlbumApi,
   deleteAssetApi,
   fetchAssets,
   removeFromAlbumApi,
@@ -58,10 +57,12 @@ export function GalleryView({
   view,
   albumId,
   title,
+  actions,
 }: {
   view: ViewKind;
   albumId?: string;
   title?: string;
+  actions?: React.ReactNode;
 }) {
   const queryClient = useQueryClient();
   const { pickFiles } = useUpload();
@@ -74,17 +75,34 @@ export function GalleryView({
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [hideInAlbum, setHideInAlbum] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Chip "Ẩn ảnh đã có album" chỉ có nghĩa ở Thư viện chính.
+  const canHideInAlbum = view === "all" && !albumId;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
 
+  // Đọc sau mount (không đọc trong useState) để HTML server/client khớp nhau.
+  useEffect(() => {
+    if (canHideInAlbum) setHideInAlbum(localStorage.getItem("hc.hide-in-album") === "1");
+  }, [canHideInAlbum]);
+
+  const toggleHideInAlbum = () =>
+    setHideInAlbum((v) => {
+      localStorage.setItem("hc.hide-in-album", v ? "0" : "1");
+      return !v;
+    });
+
+  const noAlbum = canHideInAlbum && hideInAlbum;
   const query = useInfiniteQuery({
-    queryKey: ["assets", view, debouncedQ, kind, sort, albumId ?? ""],
+    queryKey: ["assets", view, debouncedQ, kind, sort, albumId ?? "", noAlbum],
     queryFn: ({ pageParam }) =>
-      fetchAssets({ view, q: debouncedQ, cursor: pageParam, kind, sort, albumId }),
+      fetchAssets({ view, q: debouncedQ, cursor: pageParam, kind, sort, albumId, noAlbum }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     refetchInterval: (query) => {
@@ -227,9 +245,46 @@ export function GalleryView({
             </button>
           )}
         </div>
+        <button
+          onClick={() => setSearchOpen((o) => !o)}
+          aria-label="Tìm kiếm"
+          className={cn(
+            "flex h-8.5 w-8.5 items-center justify-center rounded-lg border border-border sm:hidden",
+            searchOpen || q ? "border-accent/60 text-accent" : "hover:bg-surface-2",
+          )}
+        >
+          <Search className="size-4" />
+        </button>
+        {actions}
       </Topbar>
 
       <main className="px-4 py-4 md:px-6">
+        {/* thanh tìm kiếm mobile */}
+        {searchOpen && !selecting && (
+          <div className="hc-fade-up sticky top-14 z-20 -mx-4 mb-3 border-b border-border bg-background/95 px-4 py-2 backdrop-blur sm:hidden">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-2" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Tìm theo tên file..."
+                autoFocus
+                className="h-9 w-full rounded-lg border border-border bg-surface pl-9 pr-9 text-sm outline-none placeholder:text-muted-2 focus:border-accent/60"
+              />
+              <button
+                onClick={() => {
+                  setQ("");
+                  setSearchOpen(false);
+                }}
+                aria-label="Đóng tìm kiếm"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-2 hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* thanh chọn nhiều */}
         {selecting && (
           <div className="hc-fade-up sticky top-14 z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur md:-mx-6 md:px-6">
@@ -280,6 +335,21 @@ export function GalleryView({
                   {k.label}
                 </button>
               ))}
+              {canHideInAlbum && (
+                <button
+                  onClick={toggleHideInAlbum}
+                  title="Chỉ hiện ảnh chưa nằm trong album nào"
+                  className={cn(
+                    "flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[13px] transition-colors",
+                    hideInAlbum
+                      ? "bg-accent text-background"
+                      : "bg-surface-2 text-muted hover:text-foreground",
+                  )}
+                >
+                  <FolderMinus className="size-3.5" />
+                  Ẩn ảnh đã có album
+                </button>
+              )}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <select
@@ -308,7 +378,13 @@ export function GalleryView({
         {query.isLoading ? (
           <SkeletonGrid />
         ) : items.length === 0 ? (
-          <EmptyState view={view} inAlbum={!!albumId} hasQuery={!!debouncedQ} onUpload={pickFiles} />
+          <EmptyState
+            view={view}
+            inAlbum={!!albumId}
+            hasQuery={!!debouncedQ}
+            hiddenByAlbumFilter={noAlbum}
+            onUpload={pickFiles}
+          />
         ) : (
           <>
             {!selecting && (
@@ -364,6 +440,7 @@ export function GalleryView({
           onDone={() => {
             setPickerOpen(false);
             exitSelect();
+            invalidate(); // toggle "ẩn ảnh đã có album" bật → ảnh vừa thêm biến khỏi thư viện ngay
           }}
         />
       )}
@@ -421,16 +498,23 @@ function EmptyState({
   view,
   inAlbum,
   hasQuery,
+  hiddenByAlbumFilter,
   onUpload,
 }: {
   view: ViewKind;
   inAlbum: boolean;
   hasQuery: boolean;
+  hiddenByAlbumFilter?: boolean;
   onUpload: () => void;
 }) {
   const copy = hasQuery
     ? { title: "Không tìm thấy kết quả", desc: "Thử từ khóa khác hoặc đổi bộ lọc." }
-    : inAlbum
+    : hiddenByAlbumFilter
+      ? {
+          title: "Mọi ảnh đều đã vào album",
+          desc: "Đang bật 'Ẩn ảnh đã có album'. Tắt bộ lọc này để xem lại toàn bộ thư viện.",
+        }
+      : inAlbum
       ? { title: "Album đang trống", desc: "Vào Thư viện, chọn ảnh rồi 'Thêm vào album'." }
       : view === "favorites"
         ? { title: "Chưa có ảnh yêu thích", desc: "Bấm trái tim trên ảnh để đánh dấu yêu thích." }
@@ -448,7 +532,7 @@ function EmptyState({
       </div>
       <h2 className="mt-5 text-[15px] font-medium">{copy.title}</h2>
       <p className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted">{copy.desc}</p>
-      {view === "all" && !inAlbum && !hasQuery && (
+      {view === "all" && !inAlbum && !hasQuery && !hiddenByAlbumFilter && (
         <button
           onClick={onUpload}
           className={cn(
