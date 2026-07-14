@@ -20,8 +20,9 @@ export async function POST(req: NextRequest) {
     inputPass = "";
   }
 
-  // Nếu có đặt APP_USERNAME thì bắt buộc đúng tên; không đặt = chỉ cần mật khẩu.
-  const userOk = username ? inputUser === username : true;
+  // Nếu có đặt APP_USERNAME thì bắt buộc đúng tên (KHÔNG phân biệt hoa/thường để
+  // đỡ tự khóa mình khi gõ sai hoa/thường trên điện thoại); không đặt = chỉ cần mật khẩu.
+  const userOk = username ? inputUser.toLowerCase() === username.toLowerCase() : true;
   const passOk = inputPass === password;
   if (!userOk || !passOk) {
     return NextResponse.json(

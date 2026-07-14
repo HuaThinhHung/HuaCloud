@@ -29,6 +29,9 @@ type Props = {
   onManageAlbums?: () => void;
   hasPrev: boolean;
   hasNext: boolean;
+  /** URL preview ảnh trước/sau — tải sẵn để vuốt qua lại hiện ra ngay. */
+  prevSrc?: string;
+  nextSrc?: string;
 };
 
 const MAX_ZOOM = 5;
@@ -47,8 +50,20 @@ export function Lightbox({
   onManageAlbums,
   hasPrev,
   hasNext,
+  prevSrc,
+  nextSrc,
 }: Props) {
   const isImage = asset.kind === "IMAGE" && asset.status === "READY";
+
+  // Tải trước ảnh kề (trình duyệt cache) → bấm/vuốt next-prev hiện ra tức thì.
+  useEffect(() => {
+    for (const src of [prevSrc, nextSrc]) {
+      if (src) {
+        const img = new window.Image();
+        img.src = src;
+      }
+    }
+  }, [prevSrc, nextSrc]);
 
   // Trạng thái zoom/pan (transform áp lên ảnh)
   const [zoom, setZoom] = useState(1);

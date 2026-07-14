@@ -1,6 +1,11 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   CheckCircle2,
   FolderMinus,
@@ -19,7 +24,7 @@ import { AlbumPicker } from "@/features/albums/album-picker";
 import { Topbar } from "@/components/layout/topbar";
 import { useUpload } from "@/features/upload/upload-provider";
 import { cn, dateGroupKey, dateGroupLabel } from "@/lib/utils";
-import type { AssetDTO, AssetKind } from "@/types/asset";
+import type { AssetDTO, AssetKind, AssetListResponse } from "@/types/asset";
 import {
   deleteAssetApi,
   fetchAssets,
@@ -82,7 +87,9 @@ export function GalleryView({
   const [hideInAlbum, setHideInAlbum] = useState(false);
   const [albumManageId, setAlbumManageId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const autoRetriedRef = useRef<Set<string>>(new Set());
+  // Ảnh FAILED đã tự thử lại — nhớ QUA localStorage để ảnh hỏng vĩnh viễn không bị
+  // gọi Telegram lại mỗi lần mở app (chỉ thử tự động 1 lần đời/ảnh; vẫn có nút tay).
+  const autoRetriedRef = useRef<Set<string> | null>(null);
 
   // Chip "Ẩn ảnh đã có album" chỉ có nghĩa ở Thư viện chính.
   const canHideInAlbum = view === "all" && !albumId;
@@ -152,33 +159,102 @@ export function GalleryView({
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["assets"] });
 
-  // Tự sửa ảnh "Lỗi": thấy asset FAILED → tự thử lại ĐÚNG 1 lần/phiên (âm thầm,
-  // không toast). Nếu vẫn lỗi (vd mất staging) thì giữ nút "Thử lại" tay. Không lặp
-  // vô hạn nhờ Set đã-thử; refetch 2.5s sẽ cập nhật khi asset chuyển PROCESSING→READY.
+  // Tự sửa ảnh "Lỗi": thấy asset FAILED → tự thử lại ĐÚNG 1 lần đời/ảnh (âm thầm,
+  // không toast). Nếu vẫn lỗi (vd mất staging) thì giữ nút "Thử lại" tay. Nhớ id đã
+  // thử qua localStorage nên ảnh hỏng vĩnh viễn không bị gọi lại mỗi lần mở app.
   useEffect(() => {
     if (view === "trash") return;
+    const KEY = "hc.auto-retried";
+    if (!autoRetriedRef.current) {
+      try {
+        autoRetriedRef.current = new Set(JSON.parse(localStorage.getItem(KEY) || "[]"));
+      } catch {
+        autoRetriedRef.current = new Set();
+      }
+    }
+    const tried = autoRetriedRef.current;
+    let changed = false;
     for (const a of items) {
-      if (a.status === "FAILED" && !autoRetriedRef.current.has(a.id)) {
-        autoRetriedRef.current.add(a.id);
+      if (a.status === "FAILED" && !tried.has(a.id)) {
+        tried.add(a.id);
+        changed = true;
         retryAssetApi(a.id)
           .then(() => queryClient.invalidateQueries({ queryKey: ["assets"] }))
           .catch(() => {});
       }
     }
+    if (changed) {
+      try {
+        localStorage.setItem(KEY, JSON.stringify([...tried]));
+      } catch {
+        /* localStorage đầy/không dùng được — bỏ qua, vẫn chặn trong phiên */
+      }
+    }
   }, [items, view, queryClient]);
 
+  // Sửa/xóa 1 ảnh trong MỌI cache ["assets"] tại chỗ (optimistic) — trả null để bỏ ảnh.
+  const patchAssetInCache = (id: string, patch: (a: AssetDTO) => AssetDTO | null) => {
+    queryClient.setQueriesData<InfiniteData<AssetListResponse>>(
+      { queryKey: ["assets"] },
+      (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((p) => {
+            let removed = 0;
+            const items = p.items.flatMap((a) => {
+              if (a.id !== id) return [a];
+              const r = patch(a);
+              if (!r) {
+                removed++;
+                return [];
+              }
+              return [r];
+            });
+            return { ...p, items, total: Math.max(0, p.total - removed) };
+          }),
+        };
+      },
+    );
+  };
+  const snapshotAssets = () => queryClient.getQueriesData({ queryKey: ["assets"] });
+  const rollbackAssets = (snap: [readonly unknown[], unknown][]) =>
+    snap.forEach(([key, data]) => queryClient.setQueryData(key, data));
+
+  // Bấm tim: đổi ngay trên màn hình (ở trang Yêu thích, bỏ tim = biến mất ngay).
+  // Không refetch danh sách khi thành công → mượt, không nháy; lỗi thì hoàn lại.
   const favorite = useMutation({
     mutationFn: toggleFavoriteApi,
-    onSuccess: invalidate,
-    onError: (e) => toast.error(e.message),
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ["assets"] });
+      const snap = snapshotAssets();
+      patchAssetInCache(id, (a) => {
+        const nf = !a.isFavorite;
+        if (view === "favorites" && !nf) return null;
+        return { ...a, isFavorite: nf };
+      });
+      return { snap };
+    },
+    onError: (e, _id, ctx) => {
+      if (ctx?.snap) rollbackAssets(ctx.snap);
+      toast.error(e.message);
+    },
   });
+  // Xóa: ảnh biến mất ngay khỏi lưới; lỗi thì hiện lại. onSettled đồng bộ đếm/thùng rác.
   const remove = useMutation({
     mutationFn: ({ id, hard }: { id: string; hard: boolean }) => deleteAssetApi(id, hard),
-    onSuccess: (_d, v) => {
-      invalidate();
-      toast.success(v.hard ? "Đã xóa vĩnh viễn." : "Đã chuyển vào thùng rác.");
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: ["assets"] });
+      const snap = snapshotAssets();
+      patchAssetInCache(id, () => null);
+      return { snap };
     },
-    onError: (e) => toast.error(e.message),
+    onSuccess: (_d, v) => toast.success(v.hard ? "Đã xóa vĩnh viễn." : "Đã chuyển vào thùng rác."),
+    onError: (e, _v, ctx) => {
+      if (ctx?.snap) rollbackAssets(ctx.snap);
+      toast.error(e.message);
+    },
+    onSettled: invalidate,
   });
   const restore = useMutation({
     mutationFn: restoreAssetApi,
@@ -507,6 +583,8 @@ export function GalleryView({
           onNext={() => setLightboxId(items[lightboxIndex + 1]?.id ?? lightboxAsset.id)}
           hasPrev={lightboxIndex > 0}
           hasNext={lightboxIndex < items.length - 1}
+          prevSrc={items[lightboxIndex - 1]?.previewUrl}
+          nextSrc={items[lightboxIndex + 1]?.previewUrl}
           onFavorite={() => favorite.mutate(lightboxAsset.id)}
           onDelete={() => openDelete(lightboxAsset)}
           onRename={(name) => rename.mutate({ id: lightboxAsset.id, name })}
