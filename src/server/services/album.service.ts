@@ -151,3 +151,12 @@ export async function removeAssetsFromAlbum(
   const r = await prisma.albumAsset.deleteMany({ where: { albumId, assetId: { in: assetIds } } });
   return { removed: r.count };
 }
+
+/** ID các album THƯỜNG (không phải album thông minh) đang chứa 1 ảnh — cho lightbox. */
+export async function getAssetAlbumIds(ctx: Ctx, assetId: string): Promise<string[]> {
+  const rows = await prisma.albumAsset.findMany({
+    where: { assetId, album: { workspaceId: ctx.workspaceId, isSmart: false } },
+    select: { albumId: true },
+  });
+  return rows.map((r) => r.albumId);
+}

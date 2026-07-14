@@ -24,6 +24,31 @@ export function formatDate(d: Date | string): string {
   });
 }
 
+/** Khóa nhóm theo NGÀY (local) — "YYYY-MM-DD". Dùng gom ảnh cùng ngày. */
+export function dateGroupKey(d: Date | string): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Nhãn nhóm ngày thân thiện: "Hôm nay" · "Hôm qua" · "12 tháng 7" · "12 tháng 7, 2025". */
+export function dateGroupLabel(d: Date | string): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(date)) / 86_400_000);
+  if (diffDays === 0) return "Hôm nay";
+  if (diffDays === 1) return "Hôm qua";
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return date.toLocaleDateString("vi-VN", {
+    day: "numeric",
+    month: "long",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
 export function timeAgo(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   const s = Math.floor((Date.now() - date.getTime()) / 1000);

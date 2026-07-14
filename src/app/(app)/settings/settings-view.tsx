@@ -1,17 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Bot,
   CheckCircle2,
   Database,
   Loader2,
   RefreshCw,
   Sparkles,
+  Trash2,
   XCircle,
 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Topbar } from "@/components/layout/topbar";
+import { purgeAllAssetsApi } from "@/features/gallery/api";
 import { cn } from "@/lib/utils";
+
+const PURGE_CONFIRM = "XÓA TẤT CẢ";
 
 type Health = {
   db: { ok: boolean; error?: string };
@@ -104,7 +111,130 @@ export function SettingsView() {
             Lộ trình: albums · chia sẻ có mật khẩu · tìm kiếm AI tiếng Việt · API key. Xem <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">docs/04_DEVELOPMENT_ROADMAP.md</code>.
           </p>
         </div>
+
+        <DangerZone />
       </main>
+    </>
+  );
+}
+
+/** Vùng nguy hiểm — xóa VĨNH VIỄN toàn bộ ảnh (gõ đúng chuỗi xác nhận). */
+function DangerZone() {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
+
+  const close = () => {
+    if (running) return;
+    setOpen(false);
+    setText("");
+    setDone(0);
+  };
+
+  const run = async () => {
+    setRunning(true);
+    let total = 0;
+    try {
+      // Xóa theo từng lô tới khi hết — tránh timeout với thư viện lớn.
+      for (;;) {
+        const r = await purgeAllAssetsApi(PURGE_CONFIRM);
+        total += r.purged;
+        setDone(total);
+        if (r.remaining === 0) break;
+        if (r.purged === 0) throw new Error("Còn ảnh không xóa được — thử lại sau ít phút.");
+      }
+      toast.success(`Đã xóa vĩnh viễn ${total} mục.`);
+      qc.invalidateQueries();
+      setOpen(false);
+      setText("");
+      setDone(0);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Xóa thất bại");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <>
+      <h2 className="mb-3 mt-8 text-sm font-medium text-danger">Vùng nguy hiểm</h2>
+      <div className="flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-[13px] leading-relaxed">
+          <p className="font-medium text-foreground">Xóa toàn bộ ảnh</p>
+          <p className="mt-0.5 text-muted">
+            Xóa vĩnh viễn mọi ảnh/video (kể cả trong Thùng rác) khỏi database và file gốc trên
+            Telegram. <span className="font-medium text-danger">Không thể hoàn tác.</span>
+          </p>
+        </div>
+        <button
+          onClick={() => setOpen(true)}
+          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-danger px-4 text-[13px] font-medium text-white hover:bg-danger/90"
+        >
+          <Trash2 className="size-4" />
+          Xóa toàn bộ
+        </button>
+      </div>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+          onClick={close}
+        >
+          <div
+            className="hc-scale-in w-full max-w-sm rounded-t-2xl border border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex size-9 items-center justify-center rounded-full bg-danger/10 text-danger">
+                <AlertTriangle className="size-5" />
+              </span>
+              <h3 className="text-sm font-semibold">Xóa vĩnh viễn toàn bộ ảnh?</h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-muted">
+              Thao tác này xóa sạch mọi ảnh/video và không thể khôi phục. Gõ{" "}
+              <span className="font-mono font-semibold text-danger">{PURGE_CONFIRM}</span> để xác
+              nhận.
+            </p>
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && text.trim() === PURGE_CONFIRM && !running) run();
+                if (e.key === "Escape") close();
+              }}
+              placeholder={PURGE_CONFIRM}
+              autoFocus
+              disabled={running}
+              className="mt-3 h-10 w-full rounded-lg border border-border bg-surface-2 px-3 text-sm outline-none focus:border-danger/60 disabled:opacity-60"
+            />
+            {running && (
+              <p className="mt-2 flex items-center gap-1.5 text-[12px] text-muted">
+                <Loader2 className="size-3.5 animate-spin" />
+                Đang xóa... đã xóa {done} mục
+              </p>
+            )}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={close}
+                disabled={running}
+                className="flex h-9 items-center rounded-lg px-4 text-[13px] font-medium text-muted hover:bg-surface-2 disabled:opacity-40"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={run}
+                disabled={text.trim() !== PURGE_CONFIRM || running}
+                className="flex h-9 items-center gap-1.5 rounded-lg bg-danger px-4 text-[13px] font-medium text-white hover:bg-danger/90 disabled:opacity-40"
+              >
+                {running ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                Xóa vĩnh viễn
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

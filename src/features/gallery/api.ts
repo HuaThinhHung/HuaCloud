@@ -71,6 +71,26 @@ export async function retryAssetApi(id: string): Promise<void> {
   await ok(await fetch(`/api/assets/${id}/retry`, { method: "POST" }));
 }
 
+/** ID các album đang chứa 1 ảnh (album thường). */
+export async function fetchAssetAlbums(id: string): Promise<string[]> {
+  const res = await fetch(`/api/assets/${id}/albums`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Không tải được album của ảnh");
+  return (await res.json()).albumIds;
+}
+
+/** Xóa VĨNH VIỄN 1 lô ảnh. Gọi lặp tới khi remaining === 0. */
+export async function purgeAllAssetsApi(
+  confirm: string,
+): Promise<{ purged: number; failed: number; remaining: number }> {
+  return ok(
+    await fetch("/api/assets/purge-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm }),
+    }),
+  );
+}
+
 /* ---------- Albums ---------- */
 
 export async function fetchAlbums(): Promise<AlbumDTO[]> {

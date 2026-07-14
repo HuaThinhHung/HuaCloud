@@ -269,11 +269,14 @@ export async function restoreAsset(ctx: Ctx, id: string): Promise<void> {
   await logActivity(ctx, "asset.restore", "asset", id);
 }
 
-/** Xóa THẬT: deleteMessage trên Telegram + xóa file local + xóa row. */
-export async function hardDeleteAsset(ctx: Ctx, id: string): Promise<void> {
-  const asset = await getAssetOwned(ctx, id);
-  if (!asset) throw new Error("Không tìm thấy asset");
+type AssetWithParts = Prisma.AssetGetPayload<{ include: { parts: true } }>;
 
+/**
+ * Xóa THẬT dữ liệu lưu trữ của 1 asset (Telegram deleteMessage + Blob + file local)
+ * rồi xóa row DB (StoragePart/AlbumAsset/Share tự cascade). Storage xóa best-effort:
+ * lỗi 1 part không chặn việc xóa row — tránh kẹt khi làm hàng loạt.
+ */
+async function purgeAssetData(asset: AssetWithParts): Promise<void> {
   for (const part of asset.parts) {
     if (part.backend === "TELEGRAM") {
       await telegramDriver
@@ -284,14 +287,60 @@ export async function hardDeleteAsset(ctx: Ctx, id: string): Promise<void> {
           tgMessageId: part.tgMessageId,
           tgFileId: part.tgFileId,
         })
-        .catch((e) => console.warn(`[hard-delete] deleteMessage lỗi: ${e?.message ?? e}`));
+        .catch((e) => console.warn(`[purge] deleteMessage lỗi: ${e?.message ?? e}`));
     }
-    if (part.blobUrl) await deleteBlob(part.blobUrl);
+    if (part.blobUrl)
+      await deleteBlob(part.blobUrl).catch((e) => console.warn(`[purge] blob lỗi: ${e?.message ?? e}`));
   }
-  if (asset.stagingUrl?.startsWith("http")) await deleteBlob(asset.stagingUrl);
-  await removeAssetLocalData(id);
-  await prisma.asset.delete({ where: { id } });
+  if (asset.stagingUrl?.startsWith("http"))
+    await deleteBlob(asset.stagingUrl).catch((e) => console.warn(`[purge] staging lỗi: ${e?.message ?? e}`));
+  await removeAssetLocalData(asset.id).catch(() => {});
+  await prisma.asset.delete({ where: { id: asset.id } });
+}
+
+/** Xóa THẬT: deleteMessage trên Telegram + xóa file local + xóa row. */
+export async function hardDeleteAsset(ctx: Ctx, id: string): Promise<void> {
+  const asset = await getAssetOwned(ctx, id);
+  if (!asset) throw new Error("Không tìm thấy asset");
+  await purgeAssetData(asset);
   await logActivity(ctx, "asset.purge", "asset", id, { fileName: asset.fileName });
+}
+
+/** Số ảnh mỗi lần "Xóa toàn bộ" — nhỏ để không chạm giới hạn thời gian serverless. */
+export const PURGE_BATCH = 25;
+
+/**
+ * Xóa VĨNH VIỄN 1 lô ảnh (mọi trạng thái, kể cả trong Thùng rác) của workspace.
+ * Client gọi lặp lại tới khi `remaining === 0` để chạy được với thư viện lớn mà
+ * không timeout, đồng thời hiển thị được tiến độ.
+ */
+export async function purgeAllAssets(
+  ctx: Ctx,
+  limit = PURGE_BATCH,
+): Promise<{ purged: number; failed: number; remaining: number }> {
+  const batch = await prisma.asset.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    include: { parts: true },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+  });
+
+  let purged = 0;
+  let failed = 0;
+  for (const asset of batch) {
+    try {
+      await purgeAssetData(asset);
+      purged++;
+    } catch (e) {
+      failed++;
+      console.warn(`[purge-all] asset ${asset.id} lỗi: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  const remaining = await prisma.asset.count({ where: { workspaceId: ctx.workspaceId } });
+  if (purged > 0)
+    await logActivity(ctx, "asset.purge_all", "workspace", ctx.workspaceId, { purged, failed });
+  return { purged, failed, remaining };
 }
 
 export async function retryAsset(ctx: Ctx, id: string): Promise<void> {

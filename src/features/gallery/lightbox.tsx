@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Download,
   FileText,
+  FolderPlus,
   Heart,
   Pencil,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ type Props = {
   onDelete: () => void;
   onRename: (name: string) => void;
   onEdit: () => void;
+  onManageAlbums?: () => void;
   hasPrev: boolean;
   hasNext: boolean;
 };
@@ -42,6 +44,7 @@ export function Lightbox({
   onDelete,
   onRename,
   onEdit,
+  onManageAlbums,
   hasPrev,
   hasNext,
 }: Props) {
@@ -91,6 +94,10 @@ export function Lightbox({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (renaming) return;
+      // Đang gõ trong ô nhập (vd ô tên album ở modal mở trên lightbox) → bỏ qua phím tắt,
+      // tránh 'f'/'Delete' vô tình yêu thích/xóa ảnh phía dưới.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowLeft" && hasPrev) onPrev();
       else if (e.key === "ArrowRight" && hasNext) onNext();
@@ -267,6 +274,11 @@ export function Lightbox({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {onManageAlbums && (
+            <IconBtn label="Thêm vào album" onClick={onManageAlbums}>
+              <FolderPlus className="size-5" />
+            </IconBtn>
+          )}
           {isImage && (
             <IconBtn label="Chỉnh sửa (crop/xoay)" onClick={onEdit}>
               <SlidersHorizontal className="size-5" />

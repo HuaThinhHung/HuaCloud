@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { AlbumPicker } from "@/features/albums/album-picker";
 import { Topbar } from "@/components/layout/topbar";
 import { useUpload } from "@/features/upload/upload-provider";
-import { cn } from "@/lib/utils";
+import { cn, dateGroupKey, dateGroupLabel } from "@/lib/utils";
 import type { AssetDTO, AssetKind } from "@/types/asset";
 import {
   deleteAssetApi,
@@ -77,6 +77,7 @@ export function GalleryView({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [hideInAlbum, setHideInAlbum] = useState(false);
+  const [albumManageId, setAlbumManageId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Chip "Ẩn ảnh đã có album" chỉ có nghĩa ở Thư viện chính.
@@ -115,6 +116,20 @@ export function GalleryView({
 
   const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
   const total = query.data?.pages[0]?.total ?? 0;
+
+  // Nhóm theo NGÀY tải lên — chỉ khi sắp xếp theo thời gian (Mới/Cũ nhất).
+  // Sắp theo tên/dung lượng thì giữ lưới phẳng (nhóm ngày vô nghĩa).
+  const groups = useMemo(() => {
+    if (sort !== "new" && sort !== "old") return null;
+    const out: { key: string; label: string; items: AssetDTO[] }[] = [];
+    for (const a of items) {
+      const key = dateGroupKey(a.createdAt);
+      const last = out[out.length - 1];
+      if (last && last.key === key) last.items.push(a);
+      else out.push({ key, label: dateGroupLabel(a.createdAt), items: [a] });
+    }
+    return out;
+  }, [items, sort]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -197,6 +212,21 @@ export function GalleryView({
     setSelected(new Set());
   };
 
+  // Chọn/bỏ chọn toàn bộ ảnh của một ngày (bật chế độ chọn nếu chưa).
+  const selectDay = (dayItems: AssetDTO[]) => {
+    setSelecting(true);
+    setSelected((s) => {
+      const n = new Set(s);
+      const ids = dayItems.map((a) => a.id);
+      const allSelected = ids.every((id) => n.has(id));
+      for (const id of ids) {
+        if (allSelected) n.delete(id);
+        else n.add(id);
+      }
+      return n;
+    });
+  };
+
   const bulkDelete = async () => {
     const hard = view === "trash";
     if (!window.confirm(`${hard ? "Xóa vĩnh viễn" : "Chuyển vào thùng rác"} ${selected.size} mục?`))
@@ -223,6 +253,22 @@ export function GalleryView({
   };
 
   const showToolbar = !selecting && view !== "trash";
+
+  const renderCard = (a: AssetDTO) => (
+    <AssetCard
+      key={a.id}
+      asset={a}
+      inTrash={view === "trash"}
+      selecting={selecting}
+      selected={selected.has(a.id)}
+      onToggleSelect={() => toggleSelect(a.id)}
+      onOpen={() => setLightboxId(a.id)}
+      onFavorite={() => favorite.mutate(a.id)}
+      onDelete={() => openDelete(a)}
+      onRestore={view === "trash" ? () => restore.mutate(a.id) : undefined}
+      onRetry={a.status === "FAILED" ? () => retry.mutate(a.id) : undefined}
+    />
+  );
 
   return (
     <>
@@ -392,23 +438,27 @@ export function GalleryView({
                 {total} mục{debouncedQ ? ` khớp “${debouncedQ}”` : ""}
               </p>
             )}
-            <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 2xl:columns-5">
-              {items.map((a) => (
-                <AssetCard
-                  key={a.id}
-                  asset={a}
-                  inTrash={view === "trash"}
-                  selecting={selecting}
-                  selected={selected.has(a.id)}
-                  onToggleSelect={() => toggleSelect(a.id)}
-                  onOpen={() => setLightboxId(a.id)}
-                  onFavorite={() => favorite.mutate(a.id)}
-                  onDelete={() => openDelete(a)}
-                  onRestore={view === "trash" ? () => restore.mutate(a.id) : undefined}
-                  onRetry={a.status === "FAILED" ? () => retry.mutate(a.id) : undefined}
-                />
-              ))}
-            </div>
+            {groups ? (
+              <div className="space-y-5">
+                {groups.map((g) => (
+                  <section key={g.key}>
+                    <DateHeader
+                      label={g.label}
+                      count={g.items.length}
+                      allSelected={selecting && g.items.every((a) => selected.has(a.id))}
+                      onSelectDay={() => selectDay(g.items)}
+                    />
+                    <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 2xl:columns-5">
+                      {g.items.map(renderCard)}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 2xl:columns-5">
+                {items.map(renderCard)}
+              </div>
+            )}
             <div ref={sentinelRef} className="flex h-16 items-center justify-center">
               {query.isFetchingNextPage && <Loader2 className="size-5 animate-spin text-muted-2" />}
             </div>
@@ -428,6 +478,9 @@ export function GalleryView({
           onDelete={() => openDelete(lightboxAsset)}
           onRename={(name) => rename.mutate({ id: lightboxAsset.id, name })}
           onEdit={() => setEditingId(lightboxAsset.id)}
+          onManageAlbums={
+            view === "trash" ? undefined : () => setAlbumManageId(lightboxAsset.id)
+          }
         />
       )}
 
@@ -444,7 +497,47 @@ export function GalleryView({
           }}
         />
       )}
+
+      {albumManageId && (
+        <AlbumPicker
+          assetIds={[albumManageId]}
+          manage
+          onClose={() => setAlbumManageId(null)}
+          onDone={() => setAlbumManageId(null)}
+        />
+      )}
     </>
+  );
+}
+
+function DateHeader({
+  label,
+  count,
+  allSelected,
+  onSelectDay,
+}: {
+  label: string;
+  count: number;
+  allSelected: boolean;
+  onSelectDay: () => void;
+}) {
+  return (
+    <div className="sticky top-14 z-10 -mx-4 mb-3 flex items-center gap-2.5 bg-background/85 px-4 py-2 backdrop-blur md:-mx-6 md:px-6">
+      <h3 className="text-sm font-semibold">{label}</h3>
+      <span className="text-xs text-muted-2">{count} mục</span>
+      <button
+        onClick={onSelectDay}
+        className={cn(
+          "ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] transition-colors",
+          allSelected
+            ? "bg-accent text-background"
+            : "text-muted hover:bg-surface-2 hover:text-foreground",
+        )}
+      >
+        <CheckCircle2 className="size-3.5" />
+        {allSelected ? "Bỏ chọn ngày" : "Chọn cả ngày"}
+      </button>
+    </div>
   );
 }
 
