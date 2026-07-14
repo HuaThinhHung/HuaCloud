@@ -12,6 +12,7 @@ export async function fetchAssets(params: {
   sort?: SortKey;
   albumId?: string;
   noAlbum?: boolean;
+  excludeAlbumId?: string;
 }): Promise<AssetListResponse> {
   const sp = new URLSearchParams({ view: params.view });
   if (params.q) sp.set("q", params.q);
@@ -20,6 +21,7 @@ export async function fetchAssets(params: {
   if (params.sort) sp.set("sort", params.sort);
   if (params.albumId) sp.set("albumId", params.albumId);
   if (params.noAlbum) sp.set("noAlbum", "1");
+  if (params.excludeAlbumId) sp.set("excludeAlbumId", params.excludeAlbumId);
   const res = await fetch(`/api/assets?${sp}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Không tải được danh sách ảnh");
   return res.json();
@@ -49,6 +51,19 @@ export async function renameAssetApi(id: string, name: string): Promise<{ asset:
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "rename", name }),
+    }),
+  );
+}
+
+export async function bulkRenameAssetsApi(
+  ids: string[],
+  opts: { baseName: string; start?: number; pad?: number },
+): Promise<{ renamed: number }> {
+  return ok(
+    await fetch("/api/assets/bulk-rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, ...opts }),
     }),
   );
 }

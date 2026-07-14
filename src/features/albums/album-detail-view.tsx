@@ -1,22 +1,44 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, MoreVertical, Pencil, Trash2, X } from "lucide-react";
+import { Check, ImagePlus, Loader2, MoreVertical, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { deleteAlbumApi, fetchAlbum, updateAlbumApi } from "@/features/gallery/api";
 import { GalleryView } from "@/features/gallery/gallery-view";
+import { AlbumAssetAdder } from "./album-asset-adder";
 
 export function AlbumDetailView({ id }: { id: string }) {
   const { data: album } = useQuery({ queryKey: ["album", id], queryFn: () => fetchAlbum(id) });
+  const [adding, setAdding] = useState(false);
+  const editable = album && !album.isSmart;
+
   return (
-    <GalleryView
-      view="all"
-      albumId={id}
-      title={album?.name ?? "Album"}
-      actions={album && !album.isSmart ? <AlbumMenu id={id} name={album.name} /> : undefined}
-    />
+    <>
+      <GalleryView
+        view="all"
+        albumId={id}
+        title={album?.name ?? "Album"}
+        actions={
+          editable ? (
+            <>
+              <button
+                onClick={() => setAdding(true)}
+                className="flex h-8.5 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-background hover:bg-accent-strong"
+              >
+                <ImagePlus className="size-4" />
+                <span className="hidden sm:inline">Thêm ảnh</span>
+              </button>
+              <AlbumMenu id={id} name={album.name} />
+            </>
+          ) : undefined
+        }
+      />
+      {adding && (
+        <AlbumAssetAdder albumId={id} onClose={() => setAdding(false)} onDone={() => setAdding(false)} />
+      )}
+    </>
   );
 }
 

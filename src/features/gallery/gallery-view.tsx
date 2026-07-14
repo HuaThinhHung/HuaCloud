@@ -7,6 +7,7 @@ import {
   FolderPlus,
   ImageIcon,
   Loader2,
+  Pencil,
   Search,
   Trash2,
   UploadCloud,
@@ -31,6 +32,7 @@ import {
   type SortKey,
 } from "./api";
 import { AssetCard } from "./asset-card";
+import { BulkRenameModal } from "./bulk-rename-modal";
 import { ImageEditor } from "./image-editor";
 import { Lightbox } from "./lightbox";
 
@@ -75,6 +77,7 @@ export function GalleryView({
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [hideInAlbum, setHideInAlbum] = useState(false);
   const [albumManageId, setAlbumManageId] = useState<string | null>(null);
@@ -200,6 +203,11 @@ export function GalleryView({
 
   // ----- chọn nhiều -----
   const selectedIds = useMemo(() => [...selected], [selected]);
+  // Thứ tự đánh số khi đổi tên hàng loạt = đúng thứ tự đang HIỂN THỊ (trên → dưới).
+  const orderedSelectedIds = useMemo(
+    () => items.filter((a) => selected.has(a.id)).map((a) => a.id),
+    [items, selected],
+  );
   const toggleSelect = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -343,6 +351,15 @@ export function GalleryView({
             </button>
             <span className="text-sm font-medium">Đã chọn {selected.size}</span>
             <div className="flex flex-1 items-center justify-end gap-1.5">
+              {view !== "trash" && (
+                <BarBtn
+                  onClick={() => setRenameOpen(true)}
+                  disabled={!selected.size}
+                  label="Đổi tên"
+                >
+                  <Pencil className="size-4" />
+                </BarBtn>
+              )}
               {albumId ? (
                 <BarBtn onClick={bulkRemoveFromAlbum} disabled={!selected.size} label="Bỏ khỏi album">
                   <X className="size-4" />
@@ -504,6 +521,17 @@ export function GalleryView({
           manage
           onClose={() => setAlbumManageId(null)}
           onDone={() => setAlbumManageId(null)}
+        />
+      )}
+
+      {renameOpen && (
+        <BulkRenameModal
+          assetIds={orderedSelectedIds}
+          onClose={() => setRenameOpen(false)}
+          onDone={() => {
+            setRenameOpen(false);
+            exitSelect();
+          }}
         />
       )}
     </>

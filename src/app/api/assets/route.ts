@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     sort,
     albumId: sp.get("albumId") ?? undefined,
     noAlbum: sp.get("noAlbum") === "1",
+    excludeAlbumId: sp.get("excludeAlbumId") ?? undefined,
   });
   return NextResponse.json(result);
 }

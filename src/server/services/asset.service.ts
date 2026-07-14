@@ -53,6 +53,7 @@ export type ListParams = {
   albumId?: string;
   sort?: SortKey;
   noAlbum?: boolean; // chỉ ảnh CHƯA nằm trong album nào (dọn thư viện chính)
+  excludeAlbumId?: string; // ảnh CHƯA thuộc album này — dùng khi thêm ảnh từ trong album
 };
 
 /** Bộ lọc Prisma từ SmartQuery — dùng cho album thông minh (album.service import lại). */
@@ -123,6 +124,7 @@ export async function listAssets(ctx: Ctx, params: ListParams): Promise<AssetLis
     ...(params.kind ? { kind: params.kind } : {}),
     ...(params.q ? { fileName: { contains: params.q, mode: "insensitive" as const } } : {}),
     ...(params.noAlbum && !params.albumId ? { albums: { none: {} } } : {}),
+    ...(params.excludeAlbumId ? { albums: { none: { albumId: params.excludeAlbumId } } } : {}),
     ...albumWhere,
   };
 
@@ -255,6 +257,48 @@ export async function renameAsset(ctx: Ctx, id: string, newName: string): Promis
   return toDTO(updated);
 }
 
+/**
+ * Đổi tên HÀNG LOẠT theo mẫu `{base}-{số}` — giữ nguyên đuôi file gốc của từng ảnh.
+ * `ids` phải theo đúng thứ tự client muốn đánh số (ảnh đầu = start). Chạy trong 1
+ * transaction để tất cả cùng đổi hoặc cùng không (tránh nửa vời khi lỗi giữa chừng).
+ */
+export async function bulkRenameAssets(
+  ctx: Ctx,
+  ids: string[],
+  opts: { baseName: string; start?: number; pad?: number },
+): Promise<{ renamed: number }> {
+  const base = sanitizeFileName(opts.baseName);
+  if (!base) throw new Error("Tên gốc không hợp lệ");
+  const start = Number.isFinite(opts.start) ? Math.trunc(opts.start as number) : 1;
+  const pad = opts.pad && opts.pad > 0 ? opts.pad : 0;
+
+  // Lấy tên hiện tại để giữ đuôi file; chỉ ảnh thuộc workspace mới hợp lệ.
+  const owned = await prisma.asset.findMany({
+    where: { id: { in: ids }, workspaceId: ctx.workspaceId },
+    select: { id: true, fileName: true },
+  });
+  const nameById = new Map(owned.map((a) => [a.id, a.fileName]));
+
+  const updates: Prisma.PrismaPromise<unknown>[] = [];
+  let n = start;
+  for (const id of ids) {
+    const current = nameById.get(id);
+    if (current === undefined) continue; // id lạ / không thuộc workspace → bỏ qua
+    const num = pad > 0 ? String(n).padStart(pad, "0") : String(n);
+    const fileName = sanitizeFileName(`${base}-${num}${fileExt(current)}`);
+    updates.push(prisma.asset.update({ where: { id }, data: { fileName } }));
+    n++;
+  }
+  if (updates.length === 0) throw new Error("Không có ảnh hợp lệ để đổi tên");
+
+  await prisma.$transaction(updates);
+  await logActivity(ctx, "asset.bulk_rename", "workspace", ctx.workspaceId, {
+    count: updates.length,
+    base,
+  });
+  return { renamed: updates.length };
+}
+
 export async function softDeleteAsset(ctx: Ctx, id: string): Promise<void> {
   const asset = await getAssetOwned(ctx, id);
   if (!asset) throw new Error("Không tìm thấy asset");
@@ -364,6 +408,12 @@ export async function workspaceStats(ctx: Ctx) {
     }),
   ]);
   return { count, favorites, trash, totalBytes: size._sum.size ?? 0 };
+}
+
+/** Đuôi file gồm dấu chấm (".jpg", ".png"...) — rỗng nếu không có đuôi hợp lệ. */
+function fileExt(name: string): string {
+  const m = /\.[A-Za-z0-9]{1,8}$/.exec(name);
+  return m ? m[0] : "";
 }
 
 function sanitizeFileName(name: string): string {
