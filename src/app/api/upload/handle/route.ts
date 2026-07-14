@@ -2,6 +2,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorized, SESSION_COOKIE } from "@/lib/auth";
 import { getDefaultCtx } from "@/server/context";
+import { addAssetsToAlbum } from "@/server/services/album.service";
 import { createFromBlob, MAX_FILE_BYTES } from "@/server/services/asset.service";
 
 export const runtime = "nodejs";
@@ -25,25 +26,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           throw new Error("Chưa đăng nhập");
         }
         const payload = clientPayload
-          ? (JSON.parse(clientPayload) as { fileName?: string })
+          ? (JSON.parse(clientPayload) as { fileName?: string; albumId?: string | null })
           : {};
         return {
           allowedContentTypes: ["image/*", "video/*", "audio/*", "application/pdf"],
           maximumSizeInBytes: MAX_FILE_BYTES,
           addRandomSuffix: true,
-          tokenPayload: JSON.stringify({ fileName: payload.fileName ?? "untitled" }),
+          tokenPayload: JSON.stringify({
+            fileName: payload.fileName ?? "untitled",
+            albumId: payload.albumId ?? null,
+          }),
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         const ctx = await getDefaultCtx();
         const payload = tokenPayload
-          ? (JSON.parse(tokenPayload) as { fileName?: string })
+          ? (JSON.parse(tokenPayload) as { fileName?: string; albumId?: string | null })
           : {};
-        await createFromBlob(ctx, {
+        const result = await createFromBlob(ctx, {
           blobUrl: blob.url,
           fileName: payload.fileName ?? blob.pathname,
           mimeType: blob.contentType ?? "application/octet-stream",
         });
+        // Upload từ trong 1 album → thêm ảnh vào album đó (best-effort).
+        if (payload.albumId && result.asset?.id) {
+          await addAssetsToAlbum(ctx, payload.albumId, [result.asset.id]).catch((e) =>
+            console.warn(`[upload/handle] thêm vào album lỗi: ${e instanceof Error ? e.message : e}`),
+          );
+        }
       },
     });
     return NextResponse.json(jsonResponse);

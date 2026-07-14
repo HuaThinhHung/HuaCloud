@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDefaultCtx } from "@/server/context";
+import { addAssetsToAlbum } from "@/server/services/album.service";
 import { createFromUpload, MAX_FILE_BYTES } from "@/server/services/asset.service";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,14 @@ export async function POST(req: NextRequest) {
       mimeType: file.type || "application/octet-stream",
       buffer,
     });
+
+    // Upload từ trong 1 album → thêm ảnh vào album đó (best-effort, không chặn upload).
+    const albumId = form.get("albumId");
+    if (typeof albumId === "string" && albumId && result.asset?.id) {
+      await addAssetsToAlbum(ctx, albumId, [result.asset.id]).catch((e) =>
+        console.warn(`[upload] thêm vào album lỗi: ${e instanceof Error ? e.message : e}`),
+      );
+    }
 
     return NextResponse.json(result, { status: result.kind === "created" ? 201 : 200 });
   } catch (e) {

@@ -7,12 +7,20 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { deleteAlbumApi, fetchAlbum, updateAlbumApi } from "@/features/gallery/api";
 import { GalleryView } from "@/features/gallery/gallery-view";
+import { useUpload } from "@/features/upload/upload-provider";
 import { AlbumAssetAdder } from "./album-asset-adder";
 
 export function AlbumDetailView({ id }: { id: string }) {
   const { data: album } = useQuery({ queryKey: ["album", id], queryFn: () => fetchAlbum(id) });
+  const { setUploadAlbum } = useUpload();
   const [adding, setAdding] = useState(false);
   const editable = album && !album.isSmart;
+
+  // Đang ở trong album thường → mọi upload (nút Tải lên, dán, kéo-thả) vào thẳng album này.
+  useEffect(() => {
+    setUploadAlbum(editable ? id : null);
+    return () => setUploadAlbum(null);
+  }, [id, editable, setUploadAlbum]);
 
   return (
     <>

@@ -33,6 +33,8 @@ type UploadContextValue = {
   pickFiles: () => void;
   addFiles: (files: Iterable<File>) => void;
   clearFinished: () => void;
+  /** Đặt album đích cho MỌI upload kế tiếp (trang album gọi lúc mở, null khi rời). */
+  setUploadAlbum: (albumId: string | null) => void;
 };
 
 const UploadContext = createContext<UploadContextValue | null>(null);
@@ -52,8 +54,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<UploadItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const queueRef = useRef<{ item: UploadItem; file: File }[]>([]);
+  const queueRef = useRef<{ item: UploadItem; file: File; albumId: string | null }[]>([]);
   const activeRef = useRef(0);
+  const uploadAlbumIdRef = useRef<string | null>(null);
+  const setUploadAlbum = useCallback((albumId: string | null) => {
+    uploadAlbumIdRef.current = albumId;
+  }, []);
 
   const update = useCallback((id: string, patch: Partial<UploadItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -68,6 +74,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         update(next.item.id, patch);
         activeRef.current -= 1;
         queryClient.invalidateQueries({ queryKey: ["assets"] });
+        // Upload vào album → làm mới đếm/cover album + danh sách album.
+        if (next.albumId) queryClient.invalidateQueries({ queryKey: ["albums"] });
         pump();
       };
 
@@ -76,7 +84,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         upload(next.file.name, next.file, {
           access: "public",
           handleUploadUrl: "/api/upload/handle",
-          clientPayload: JSON.stringify({ fileName: next.file.name }),
+          clientPayload: JSON.stringify({ fileName: next.file.name, albumId: next.albumId }),
           onUploadProgress: (e) =>
             update(next.item.id, { status: "uploading", progress: Math.round(e.percentage) }),
         })
@@ -94,6 +102,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
       const form = new FormData();
       form.append("file", next.file, next.file.name);
+      if (next.albumId) form.append("albumId", next.albumId);
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/upload");
@@ -128,7 +137,9 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
   const addFiles = useCallback(
     (files: Iterable<File>) => {
-      const accepted: { item: UploadItem; file: File }[] = [];
+      // Chốt album đích tại thời điểm thả file (đang đứng ở trang album nào).
+      const albumId = uploadAlbumIdRef.current;
+      const accepted: { item: UploadItem; file: File; albumId: string | null }[] = [];
       for (const file of files) {
         if (file.size > MAX_FILE_BYTES) {
           toast.error(`"${file.name}" vượt quá 20MB — giới hạn hiện tại là 20MB/file.`);
@@ -142,7 +153,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           progress: 0,
           status: "queued",
         };
-        accepted.push({ item, file });
+        accepted.push({ item, file, albumId });
       }
       if (accepted.length === 0) return;
       setItems((prev) => [...accepted.map((a) => a.item), ...prev].slice(0, 100));
@@ -179,8 +190,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [addFiles]);
 
   const value = useMemo(
-    () => ({ items, pickFiles, addFiles, clearFinished }),
-    [items, pickFiles, addFiles, clearFinished],
+    () => ({ items, pickFiles, addFiles, clearFinished, setUploadAlbum }),
+    [items, pickFiles, addFiles, clearFinished, setUploadAlbum],
   );
 
   return (

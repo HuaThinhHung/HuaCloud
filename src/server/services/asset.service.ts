@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { Asset, Prisma } from "@prisma/client";
+import type { Asset, Prisma, StoragePart } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import type { Ctx } from "@/server/context";
 import { processAssetNow } from "@/server/jobs/process-asset";
@@ -20,7 +20,16 @@ function kindFromMime(mime: string): AssetKind {
   return "DOCUMENT";
 }
 
-export function toDTO(a: Asset): AssetDTO {
+/**
+ * DTO cho client. Nếu asset đã kèm `parts` và thumb/preview nằm trên Vercel Blob
+ * (public CDN), trả THẲNG URL Blob → gallery tải trực tiếp từ CDN, KHÔNG qua
+ * route `/f` (mỗi ảnh vốn tốn 1 lần chạy function + 1 query Neon → chậm/lag).
+ * Ảnh GỐC vẫn đi qua `/f` để giữ auth + giấu token Telegram.
+ */
+export function toDTO(a: Asset & { parts?: StoragePart[] }): AssetDTO {
+  const blobOf = (variant: string) =>
+    a.parts?.find((p) => p.variant === variant && p.backend === "BLOB" && p.blobUrl)?.blobUrl ??
+    null;
   return {
     id: a.id,
     fileName: a.fileName,
@@ -36,8 +45,8 @@ export function toDTO(a: Asset): AssetDTO {
     deletedAt: a.deletedAt?.toISOString() ?? null,
     errorMessage: a.errorMessage,
     createdAt: a.createdAt.toISOString(),
-    thumbUrl: `/f/${a.id}?v=thumb`,
-    previewUrl: `/f/${a.id}?v=preview`,
+    thumbUrl: blobOf("THUMB") ?? `/f/${a.id}?v=thumb`,
+    previewUrl: blobOf("PREVIEW") ?? `/f/${a.id}?v=preview`,
     originalUrl: `/f/${a.id}?v=original`,
   };
 }
@@ -133,6 +142,9 @@ export async function listAssets(ctx: Ctx, params: ListParams): Promise<AssetLis
       where,
       orderBy: sortOrderBy(params.sort),
       take: take + 1,
+      // Kèm thumb/preview để toDTO trả URL Blob CDN trực tiếp (1 query cho cả trang,
+      // thay vì mỗi ảnh 1 lần proxy /f). Chỉ 2 variant → nhẹ.
+      include: { parts: { where: { variant: { in: ["THUMB", "PREVIEW"] } } } },
       ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
     }),
     prisma.asset.count({ where }),
