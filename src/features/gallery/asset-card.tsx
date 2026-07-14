@@ -68,6 +68,7 @@ export function AssetCard({
             src={asset.thumbUrl}
             alt={asset.fileName}
             loading="lazy"
+            decoding="async"
             className="size-full object-cover"
             style={
               asset.blurDataUrl

@@ -82,6 +82,7 @@ export function GalleryView({
   const [hideInAlbum, setHideInAlbum] = useState(false);
   const [albumManageId, setAlbumManageId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const autoRetriedRef = useRef<Set<string>>(new Set());
 
   // Chip "Ẩn ảnh đã có album" chỉ có nghĩa ở Thư viện chính.
   const canHideInAlbum = view === "all" && !albumId;
@@ -150,6 +151,21 @@ export function GalleryView({
   }, [query]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["assets"] });
+
+  // Tự sửa ảnh "Lỗi": thấy asset FAILED → tự thử lại ĐÚNG 1 lần/phiên (âm thầm,
+  // không toast). Nếu vẫn lỗi (vd mất staging) thì giữ nút "Thử lại" tay. Không lặp
+  // vô hạn nhờ Set đã-thử; refetch 2.5s sẽ cập nhật khi asset chuyển PROCESSING→READY.
+  useEffect(() => {
+    if (view === "trash") return;
+    for (const a of items) {
+      if (a.status === "FAILED" && !autoRetriedRef.current.has(a.id)) {
+        autoRetriedRef.current.add(a.id);
+        retryAssetApi(a.id)
+          .then(() => queryClient.invalidateQueries({ queryKey: ["assets"] }))
+          .catch(() => {});
+      }
+    }
+  }, [items, view, queryClient]);
 
   const favorite = useMutation({
     mutationFn: toggleFavoriteApi,
